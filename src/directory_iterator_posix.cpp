@@ -1,0 +1,100 @@
+#include "directory_iterator.hpp"
+
+#include <cstring>
+
+#include <dirent.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+namespace fstree {
+
+void sorted_recursive_directory_iterator::read_directory(
+    const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent) {
+  // Open the directory
+  DIR* dir = opendir(abs.c_str());
+  if (dir == nullptr) {
+    throw std::runtime_error("Failed to open directory: " + abs.string() + ": " + std::strerror(errno));
+  }
+
+  fstree::wait_group wg;
+
+  // Iterate the directory
+  const struct dirent* entry;
+  while ((entry = readdir(dir)) != nullptr) {
+    // Get the path
+    std::filesystem::path relpath = rel / entry->d_name;
+    std::filesystem::path abspath = abs / entry->d_name;
+
+    // Skip . and ..
+    if (relpath.filename() == "." || relpath.filename() == ".." || relpath.filename() == ".fstree") {
+      continue;
+    }
+
+    // Skip anything that's not a directory, file or symlink.
+    if (entry->d_type != DT_DIR && entry->d_type != DT_REG && entry->d_type != DT_LNK) {
+      continue;
+    }
+
+    // Stat the file
+    struct stat st;
+    if (lstat((abs / entry->d_name).c_str(), &st) != 0) {
+      continue;
+    }
+
+    // Read the target of the symlink
+    std::filesystem::path target;
+    if ((st.st_mode & S_IFMT) == S_IFLNK) {
+      target = std::filesystem::read_symlink(abs / entry->d_name);
+    }
+
+    // convert mtime to uint64_t
+    uint64_t mtime = uint64_t(st.st_mtim.tv_sec) * 1000000000 + st.st_mtim.tv_nsec;
+    inode::time_type mtime_tp = inode::time_type(std::chrono::nanoseconds(mtime));
+
+    // build status bits
+    uint32_t status_bits = st.st_mode & ACCESSPERMS;
+    switch ((st.st_mode & S_IFMT)) {
+      case S_IFDIR:
+        status_bits |= file_status::directory;
+        break;
+      case S_IFREG:
+        status_bits |= file_status::regular;
+        break;
+      case S_IFLNK:
+        status_bits |= file_status::symlink;
+        break;
+    }
+    file_status status(status_bits);
+
+    // Add the path to the list of inodes
+    inode* node = new inode(relpath.string(), status, mtime_tp, target);
+    {
+      std::lock_guard<std::mutex> lock(_mutex);
+      _inodes.push_back(node);
+      parent->add_child(node);
+    }
+
+    // Recurse if it's a directory
+    if (entry->d_type == DT_DIR) {
+      wg.add(1);
+      _pool.enqueue_or_run([this, abspath, relpath, node, &wg] {
+        try {
+          read_directory(abspath, relpath, node);
+          wg.done();
+        }
+        catch (const std::exception& e) {
+          wg.exception(e);
+        }
+      });
+    }
+  }
+
+  // Close the directory
+  closedir(dir);
+
+  // Wait for all the children to finish
+  wg.wait_rethrow();
+}
+
+}  // namespace fstree

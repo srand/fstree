@@ -1,0 +1,25 @@
+from jolt.plugins.cmake import CMake
+from jolt.plugins import git 
+
+
+@git.influence("third_party/grpc")
+class Grpc(CMake):
+    cmakelists = "third_party/grpc/CMakeLists.txt"
+
+    def publish(self, artifact, tools):
+        super().publish(artifact, tools)
+        artifact.environ.PATH.append("bin")
+        artifact.environ.PKG_CONFIG_PATH.append("lib/pkgconfig")
+        artifact.environ.CMAKE_MODULE_PATH.append("lib/cmake")
+        artifact.environ.INCPATHS.append("include")
+        artifact.environ.LIBPATHS.append("lib")
+
+
+@git.influence(".")
+class Fstree(CMake):
+    requires = ["grpc"]
+
+    def run(self, deps, tools):
+        path = tools.getenv("CMAKE_MODULE_PATH").replace("\\", "/")
+        self.options.append(f"CMAKE_MODULE_PATH={path}")
+        super().run(deps, tools)

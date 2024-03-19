@@ -1,0 +1,44 @@
+name: Build Executable
+
+on:
+  push:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - windows-latest
+          - ubuntu-latest
+          # - macos-latest
+    steps:
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.x'
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip jolt
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Jolt Cache
+      id: jolt-cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/cache
+        key: jolt-cache-${{ runner.os }}
+    - name: Build package
+      run: python -m jolt -c jolt.cachedir=${{ github.workspace }}/cache build fstree -c output
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: binary-${{ matrix.os }}
+        path: output
