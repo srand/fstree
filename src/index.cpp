@@ -122,7 +122,7 @@ void index::load(const std::filesystem::path& indexfile) {
     file.read(reinterpret_cast<char*>(&mtime), sizeof(mtime));
     if (!file) throw std::runtime_error("failed reading index: " + index_path.string() + ": " + std::strerror(errno));
     // Convert to time_point
-    inode::time_type mtime_tp{std::chrono::nanoseconds(mtime)};
+    inode::time_type mtime_tp = std::filesystem::file_time_type{std::chrono::microseconds(mtime)};
 
     std::string target;
     if (status.is_symlink()) {

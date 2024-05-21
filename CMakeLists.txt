@@ -6,7 +6,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  set(CMAKE_CXX_FLAGS_RELEASE "/O2 /MT")
+  # set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 else()
   set(CMAKE_CXX_FLAGS_DEBUG "-g")
   set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra -Werror -pedantic")
@@ -75,11 +75,6 @@ target_link_libraries(
 )
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  target_link_options(
-    fstree
-    PRIVATE
-      "/MT"
-  )
 else()
   target_link_options(
     fstree

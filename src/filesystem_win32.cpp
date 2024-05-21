@@ -1,6 +1,7 @@
 #include "filesystem.hpp"
 
 #include <Windows.h>
+#include <atomic>
 
 namespace fstree {
 
@@ -22,23 +23,31 @@ void lstat(const std::filesystem::path& path, stat& st) {
   HANDLE handle = FindFirstFileA(path.string().c_str(), &result);
   if (INVALID_HANDLE_VALUE == handle) {
     error = GetLastError();
-    ec = std::error_code(error, std::system_category());
+    std::error_code ec(error, std::system_category());
     throw std::runtime_error("failed to stat file: " + path.string() + ": " + ec.message());
   }
 
-  st.ino = 0;
-  st.last_write_time = result.ftLastWriteTime.dwHighDateTime;
-  st.last_write_time <<= 32;
-  st.last_write_time |= result.ftLastWriteTime.dwLowDateTime;
+  uint64_t time;
+  time = result.ftLastWriteTime.dwHighDateTime;
+  time <<= 32;
+  time = result.ftLastWriteTime.dwLowDateTime;
+  st.last_write_time = std::filesystem::file_time_type(std::chrono::microseconds(time));
+
+  std::filesystem::perms perms;
+  if (result.dwFileAttributes & FILE_ATTRIBUTE_READONLY) {
+    perms = std::filesystem::perms::_File_attribute_readonly;
+  } else {
+    perms = std::filesystem::perms::all;
+  }
 
   if (result.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-    st.status = file_status::directory;
+    st.status = file_status(std::filesystem::file_type::directory, perms);
   }
   else if (result.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
-    st.status = file_status::symlink;
+    st.status = file_status(std::filesystem::file_type::symlink, perms);
   }
   else {
-    st.status = file_status::regular;
+    st.status = file_status(std::filesystem::file_type::regular, perms);
   }
 
   FindClose(handle);

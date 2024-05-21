@@ -220,7 +220,7 @@ int cmd_fstree(const fstree::argparser& args) {
 
     fstree::ignore_list ignores;
     try {
-      ignores.load(workspace / ignorefile);
+      ignores.load((workspace / ignorefile).string());
     }
     catch (const std::exception& e) {
     }
@@ -248,7 +248,7 @@ int cmd_fstree(const fstree::argparser& args) {
 
     fstree::ignore_list ignores;
     try {
-      ignores.load(workspace / ignorefile);
+      ignores.load((workspace / ignorefile).string());
     }
     catch (const std::exception& e) {
     }

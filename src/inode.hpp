@@ -101,7 +101,7 @@ class inode {
 
   // equality operator
   bool operator==(const inode& other) const {
-    return _path == other._path && _status == other._status && _last_write_time == other._last_write_time &&
+    return _path == other._path && _status.type() == other._status.type() && _status.permissions() == other._status.permissions() && _last_write_time == other._last_write_time &&
            _target == other._target;
   }
 

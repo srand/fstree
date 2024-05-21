@@ -1,5 +1,6 @@
 #include "thread.hpp"
 
+#include <stdexcept>
 #include <thread>
 
 static unsigned int max_threads = std::thread::hardware_concurrency();

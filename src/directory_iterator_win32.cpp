@@ -9,7 +9,7 @@ namespace fs = std::filesystem;
 namespace fstree {
 
 void sorted_recursive_directory_iterator::read_directory(
-    const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent, std::error_code& ec) {
+    const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent) {
   fstree::wait_group wg;
 
   DWORD error;
@@ -20,8 +20,8 @@ void sorted_recursive_directory_iterator::read_directory(
   handle = FindFirstFileA((abs.string() + "\\*").c_str(), &result);
   if (INVALID_HANDLE_VALUE == handle) {
     error = GetLastError();
-    ec = std::error_code(error, std::system_category());
-    return;
+    std::error_code ec(error, std::system_category());
+    throw std::runtime_error("failed to traverse directory: " + rel.string() + ": " + ec.message());
   }
 
   do {
@@ -49,16 +49,14 @@ void sorted_recursive_directory_iterator::read_directory(
     // Get permissions
     fs::perms perms = fs::perms::all;
     if (result.dwFileAttributes & FILE_ATTRIBUTE_READONLY) {
-      perms &= ~fs::perms::owner_write;
-      perms &= ~fs::perms::group_write;
-      perms &= ~fs::perms::others_write;
+      perms = fs::perms::_File_attribute_readonly;
     }
 
-    // Get modification time
-    inode::time_type mtime = result.ftLastWriteTime.dwHighDateTime;
-    mtime <<= 32;
-    mtime |= result.ftLastWriteTime.dwLowDateTime;
-    inode::time_type mtime_tp = inode::time_type(std::chrono::nanoseconds(mtime));
+    uint64_t time;
+    time = result.ftLastWriteTime.dwHighDateTime;
+    time <<= 32;
+    time = result.ftLastWriteTime.dwLowDateTime;
+    fstree::inode::time_type mtime_tp = std::filesystem::file_time_type(std::chrono::microseconds(time));
 
     // Status
     file_status status(type, perms);
@@ -66,9 +64,10 @@ void sorted_recursive_directory_iterator::read_directory(
     // Get the target of the symlink
     fs::path target;
     if (type == fs::file_type::symlink) {
+      std::error_code ec;
       target = fs::read_symlink(abs / name, ec);
       if (ec) {
-        break;
+        throw std::runtime_error("failed to read symlink: " + (abs/name).string() + ": " + ec.message());
       }
     }
 
@@ -83,13 +82,12 @@ void sorted_recursive_directory_iterator::read_directory(
     if (type == fs::file_type::directory) {
       wg.add(1);
       _pool.enqueue_or_run([this, abs, name, path, child, &wg] {
-        std::error_code ec;
-        read_directory(abs / name, path, child, ec);
-        if (ec) {
-          wg.error(ec);
-        }
-        else {
+        try {
+          read_directory(abs / name, path, child);
           wg.done();
+        }
+        catch (const std::exception& e) {
+          wg.exception(e);
         }
       });
     }
@@ -97,10 +95,7 @@ void sorted_recursive_directory_iterator::read_directory(
 
   FindClose(handle);
 
-  wg.wait();
-  if (!ec) {
-    ec = wg.error();
-  }
+  wg.wait_rethrow();
 }
 
 }  // namespace fstree
