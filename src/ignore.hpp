@@ -2,6 +2,7 @@
 #define IGNORE_HPP
 
 #include <fstream>
+#include <iostream>
 #include <regex>
 #include <stdexcept>
 #include <string>
@@ -52,6 +53,7 @@ class ignore_list {
       }
       pattern += "(";
       bool star = false;
+      bool skip_slash = false;
       for (size_t i = 0; i < p.size(); ++i) {
         char c = p[i];
 
@@ -65,15 +67,29 @@ class ignore_list {
           }
         }
 
+        if (skip_slash) {
+          skip_slash = false;
+          if (c == '/') {
+            continue;
+          }
+        }
+
+        if (star) {
+          if (c == '*') {
+            pattern += "([^/]*(/[^/])*)(/?)";
+            star = false;
+            skip_slash = true;
+            continue;
+          }
+          else {
+            pattern += "[^/]*";
+            star = false;
+          }
+        }
+
         switch (c) {
           case '*':
-            if (star) {
-              pattern += "([^/]*(/[^/])*)";
-              star = false;
-            }
-            else {
-              star = true;
-            }
+            star = true;
             break;
           case '?':
             pattern += ".";
@@ -90,11 +106,18 @@ class ignore_list {
             break;
         }
       }
+
+      if (star) {
+        pattern += "[^/]*";
+      }
+
       pattern += "(/.*)?)$";
     }
+
     regex = std::regex(pattern);
   }
 
+  // Load patterns from a file
   void load(const std::string& path) {
     std::ifstream file(path);
     if (!file) {
@@ -108,6 +131,12 @@ class ignore_list {
       }
     }
 
+    file.close();
+
+    finalize();
+  }
+
+  void finalize() {
     compile(_inclusive_patterns, _inclusive_regex);
     compile(_exclusive_patterns, _exclusive_regex);
   }

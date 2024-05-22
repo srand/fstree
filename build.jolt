@@ -1,3 +1,4 @@
+from jolt import Test
 from jolt.plugins.cmake import CMake
 from jolt.plugins import git 
 
@@ -15,11 +16,49 @@ class Grpc(CMake):
         artifact.environ.LIBPATHS.append("lib")
 
 
-@git.influence(".")
+@git.influence("third_party/googletest")
+class GoogleTest(CMake):
+    cmakelists = "third_party/googletest/CMakeLists.txt"
+
+    def publish(self, artifact, tools):
+        super().publish(artifact, tools)
+        artifact.environ.PATH.append("bin")
+        artifact.environ.PKG_CONFIG_PATH.append("lib/pkgconfig")
+        artifact.environ.CMAKE_MODULE_PATH.append("lib/cmake")
+        artifact.environ.INCPATHS.append("include")
+        artifact.environ.LIBPATHS.append("lib")
+
+
+@git.influence("CMakelists.txt")
+@git.influence("src")
+@git.influence("test")
 class Fstree(CMake):
-    requires = ["grpc"]
+    incremental = True
+    requires = ["googletest", "grpc"]
 
     def run(self, deps, tools):
         path = tools.getenv("CMAKE_MODULE_PATH").replace("\\", "/")
         self.options.append(f"CMAKE_MODULE_PATH={path}")
         super().run(deps, tools)
+
+    def publish(self, artifact, tools):
+        super().publish(artifact, tools)
+        artifact.environ.PATH.append("bin")
+
+
+class Tests(Test):
+    requires = ["fstree"]
+
+    def permissions(self):
+        """ Generate a list of all permutable std::filesystem::permissions."""
+        return [p for p in range(0, 0o777 + 1)]
+
+    def types(self):
+        return ["f", "d", "s"]
+    
+    def test_unittests(self):
+        """
+        Run the unit tests.
+        ---
+        """
+        self.tools.run("fstree_test")

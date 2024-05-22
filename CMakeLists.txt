@@ -14,16 +14,26 @@ endif()
 
 set(CMAKE_CXX_STANDARD 20)
 
+
+################################################################################
+# Find dependencies
+################################################################################
+
 find_package(Protobuf CONFIG REQUIRED)
-find_package(gRPC CONFIG REQUIRED)
 find_package(absl CONFIG REQUIRED)
+find_package(gRPC CONFIG REQUIRED)
+find_package(GTest CONFIG REQUIRED)
+
+
+################################################################################
+# Build library
+################################################################################
 
 set(SRCS
     src/cache.cpp
     src/cache.proto
     src/index.cpp
     src/inode.cpp
-    src/main.cpp
     src/remote_grpc.cpp
     src/sha1.cpp
     src/thread.cpp
@@ -32,9 +42,8 @@ set(SRCS
 
 if (WIN32)
     list(APPEND SRCS
-    # src/directory_iterator_std.cpp
-    src/directory_iterator_win32.cpp
-    src/filesystem_win32.cpp
+        src/directory_iterator_win32.cpp
+        src/filesystem_win32.cpp
     )
 else()
     list(APPEND SRCS
@@ -43,19 +52,39 @@ else()
     )
 endif()
 
-add_executable(fstree ${SRCS})
+add_library(fstreelib ${SRCS})
+
+protobuf_generate(
+    TARGET
+        fstreelib
+    LANGUAGE
+        cpp
+)
+
+# compile the GRPC services
+protobuf_generate(
+    TARGET
+        fstreelib
+    LANGUAGE
+        grpc
+    GENERATE_EXTENSIONS
+        .grpc.pb.h
+        .grpc.pb.cc
+    PLUGIN
+        "protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>"
+)
 
 target_include_directories(
-    fstree
+    fstreelib
     PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${CMAKE_CURRENT_BINARY_DIR}"
         "${CMAKE_CURRENT_BINARY_DIR}/src"
 )
 
 target_link_libraries(
-    fstree
+    fstreelib
     PRIVATE
-        #fstree-proto
         gRPC::grpc++
         gRPC::grpc
         gRPC::gpr
@@ -74,6 +103,20 @@ target_link_libraries(
         absl::statusor
 )
 
+
+################################################################################
+# Build executable
+################################################################################
+
+add_executable(fstree src/main.cpp)
+
+target_link_libraries(
+    fstree
+    PRIVATE
+        fstreelib
+        protobuf::libprotobuf
+)
+
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 else()
   target_link_options(
@@ -84,29 +127,42 @@ else()
 endif()
 
 
-protobuf_generate(
-    TARGET
-        fstree
-    LANGUAGE
-        cpp
-)
-
-# compile the GRPC services
-protobuf_generate(
-    TARGET
-        fstree
-    LANGUAGE
-        grpc
-    GENERATE_EXTENSIONS
-        .grpc.pb.h
-        .grpc.pb.cc
-    PLUGIN
-        "protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>"
-)
-
 install(
     TARGETS
         fstree
     DESTINATION
         bin
 )
+
+################################################################################
+# Build tests
+################################################################################
+
+add_executable(
+    fstree_test
+    test/test_ignore.cpp
+)
+
+target_link_libraries(
+    fstree_test
+    PRIVATE
+        fstreelib
+        GTest::gtest
+        GTest::gtest_main
+)
+
+add_test(
+    NAME
+        fstree_test
+    COMMAND
+        fstree_test
+)
+
+install(
+    TARGETS
+        fstree_test
+    DESTINATION
+        bin
+)
+
+################################################################################
