@@ -1,0 +1,28 @@
+---
+BasedOnStyle: Google
+---
+Language: Cpp
+BinPackParameters: false
+ColumnLimit: 120
+DerivePointerAlignment: false
+PointerAlignment: Left
+SortIncludes: true
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex:           '^"'
+    Priority:        1
+  - Regex:           '^((<|")(boost|cppunit|gtest|gmock|json|oxf|RCF|Qt.*|SF)/)'
+    Priority:        2
+  - Regex:           '<([[:alnum:]]|_)+>'
+    Priority:        3
+  - Regex:           '.*'
+    Priority:        4
+Standard: Cpp11
+FixNamespaceComments: true
+BreakBeforeBraces: Custom
+BraceWrapping: {BeforeElse: true, BeforeCatch: true}
+AlignAfterOpenBracket: AlwaysBreak
+---
+Language: Java
+ColumnLimit: 120
+---

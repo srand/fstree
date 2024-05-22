@@ -266,63 +266,62 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
   pool& pool = get_pool();
   wait_group wg;
 
-  // List of missing objects
-  std::vector<const inode*> missing;
-  std::vector<const inode*> inodes;
-  std::vector<std::string> hashes;
+  // List of trees to check for presence in the remote
+  std::vector<std::string> check_trees;
 
-  // Add root directory
-  inodes.push_back(&index.root());
-  hashes.push_back(index.root().hash());
+  // Mutex to protect the check_trees list when adding new trees
+  std::mutex check_trees_mutex;
 
-  // Check if all objects are present in batches of 1000
-  for (auto it = index.begin(); it != index.end();) {
-    while (hashes.size() < 0x10000 && it != index.end()) {
-      if ((*it)->is_symlink()) {
-        ++it;
-        continue;
-      }
+  // First add the root tree to be checked
+  check_trees.push_back(index.root().hash());
 
-      inodes.push_back(*it);
-      hashes.push_back((*it)->hash());
-      ++it;
+  do {
+    // Lists of missing child trees and objects for the checked tree
+    std::vector<std::string> missing_trees, missing_objects;
+
+    // Pop the last tree from the list to check
+    std::string tree_hash = check_trees.back();
+    check_trees.pop_back();
+
+    // Query the remote for missing trees and objects
+    remote.has_tree(tree_hash, missing_trees, missing_objects);
+
+    // Write missing objects in parallel
+    for (const auto& hash : missing_objects) {
+      wg.add(1);
+      pool.enqueue([this, &wg, &remote, hash]() {
+        try {
+          push_object(remote, hash);
+          wg.done();
+        }
+        catch (const std::exception& e) {
+          wg.exception(e);
+        }
+      });
     }
 
-    std::vector<bool> presence;
-    remote.has_objects(hashes, presence);
+    // Write missing trees in parallel
+    for (const auto& hash : missing_trees) {
+      wg.add(1);
+      pool.enqueue([this, &check_trees, &check_trees_mutex, &wg, &remote, hash]() {
+        try {
+          push_tree(remote, hash);
 
-    for (size_t i = 0; i < inodes.size(); ++i) {
-      if (!presence[i]) {
-        missing.push_back(inodes[i]);
-      }
+          // Add the tree to the list of trees to check now that it's been pushed
+          std::lock_guard<std::mutex> lock(check_trees_mutex);
+          check_trees.push_back(hash);
+
+          wg.done();
+        }
+        catch (const std::exception& e) {
+          wg.exception(e);
+        }
+      });
     }
 
-    inodes.clear();
-    hashes.clear();
-  }
+    wg.wait_rethrow();
 
-  // Write missing objects in parallel
-  for (const auto& inode : missing) {
-    if (inode->is_symlink()) continue;
-
-    wg.add(1);
-    pool.enqueue([this, &wg, &remote, inode]() {
-      try {
-        if (inode->is_directory()) {
-          push_tree(remote, inode->hash());
-        }
-        else {
-          push_object(remote, inode->hash());
-        }
-        wg.done();
-      }
-      catch (const std::exception& e) {
-        wg.exception(e);
-      }
-    });
-  }
-
-  wg.wait_rethrow();
+  } while (!check_trees.empty());
 }
 
 void cache::pull(fstree::index& index, fstree::remote& remote, const std::string& tree_hash) {

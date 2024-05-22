@@ -16,6 +16,10 @@ class remote_grpc : public remote {
  public:
   explicit remote_grpc(const url& address);
 
+  void has_tree(
+      const std::string& hash,
+      std::vector<std::string>& missing_trees,
+      std::vector<std::string>& missing_objects) override;
   bool has_object(const std::string& hash) override;
   void has_objects(const std::vector<std::string>& hashes, std::vector<bool>& presence) override;
 

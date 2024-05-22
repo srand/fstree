@@ -122,6 +122,38 @@ void remote_grpc::read_object(
   }
 }
 
+void remote_grpc::has_tree(
+    const std::string& hash, std::vector<std::string>& missing_trees, std::vector<std::string>& missing_objects) {
+  // Set up gRPC client
+  grpc::ClientContext context;
+
+  // Create a HasTree request message
+  fstree::HasTreeRequest request;
+  request.add_digest(hash);
+
+  // Create a response message
+  fstree::HasTreeResponse response;
+
+  // Call the RPC
+  auto server = _client->HasTree(&context, request);
+
+  // Read the responses
+  while (server->Read(&response)) {
+    // Copy the missing trees and objects vectors
+    for (int i = 0; i < response.missing_trees_size(); i++) {
+      missing_trees.push_back(response.missing_trees(i));
+    }
+    for (int i = 0; i < response.missing_objects_size(); i++) {
+      missing_objects.push_back(response.missing_objects(i));
+    }
+  }
+
+  auto status = server->Finish();
+  if (!status.ok()) {
+    throw std::runtime_error("failed to lookup tree in remote cache: " + status.error_message());
+  }
+}
+
 bool remote_grpc::has_object(const std::string& hash) {
   // call has_objects with a vector of one hash
   std::vector<std::string> hashes = {hash};

@@ -11,6 +11,11 @@ class remote {
   // Returns true if the object with the given hash is present in the remote.
   virtual bool has_object(const std::string& hash) = 0;
 
+  // Returns lists of trees and objects that are missing in the remote.
+  // The missing_trees and missing_objects vectors are filled with the hashes of the missing trees and objects.
+  virtual void has_tree(
+      const std::string& hash, std::vector<std::string>& missing_trees, std::vector<std::string>& missing_objects) = 0;
+
   // Returns a vector of booleans indicating the presence of objects with the given hashes.
   virtual void has_objects(const std::vector<std::string>& hashes, std::vector<bool>& presence) = 0;
 
