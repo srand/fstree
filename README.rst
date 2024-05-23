@@ -28,26 +28,26 @@ To push a tree to the server, run:
 
 .. code-block::
 
-  fstree write-tree-push --remote tcp://localhost:9090 /path/to/data
+  fstree write-tree-push --remote jolt://localhost:9090 /path/to/data
 
 The steps above can be split into two separate commands:
 
 .. code-block::
 
   fstree write-tree /path/to/data
-  fstree push --remote tcp://localhost:9090 <digest>
+  fstree push --remote jolt://localhost:9090 <digest>
 
 To pull a tree from the server, run:
 
 .. code-block::
 
-  fstree pull-checkout --remote tcp://localhost:9090 <digest> /path/to/data
+  fstree pull-checkout --remote jolt://localhost:9090 <digest> /path/to/data
 
 The steps above can be split into two separate commands:
 
 .. code-block::
 
-  fstree pull --remote tcp://localhost:9090 <digest>
+  fstree pull --remote jolt://localhost:9090 <digest>
   fstree checkout <digest> /path/to/data
 
 To list the contents of a tree, run:
@@ -66,7 +66,7 @@ The following environment variables are supported:
 
 - ``FSTREE_CACHE``: The directory where the local object cache is stored. Defaults to ``~/.cache/fstree`` on Linux and macOS and ``~/AppData/Local/fstree`` on Windows.
 - ``FSTREE_IGNORE``: The relative path to the ignore file. Defaults to ``.fstreeignore`` in the root of the tree.
-- ``FSTREE_REMOTE``: The remote address of the server to connect to. Defaults to ``tcp://localhost:9090``.
+- ``FSTREE_REMOTE``: The remote address of the server to connect to. Defaults to ``jolt://localhost:9090``.
 - ``FSTREE_THREADS``: The number of threads to use for parallel operations. Defaults to the number of CPU cores.
 
 The following command line arguments are supported:

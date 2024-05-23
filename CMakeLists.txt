@@ -31,10 +31,11 @@ find_package(GTest CONFIG REQUIRED)
 
 set(SRCS
     src/cache.cpp
-    src/cache.proto
     src/index.cpp
     src/inode.cpp
-    src/remote_grpc.cpp
+    src/jolt.proto
+    src/remote.cpp
+    src/remote_jolt.cpp
     src/sha1.cpp
     src/thread.cpp
     src/thread_pool.cpp

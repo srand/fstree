@@ -1,11 +1,18 @@
 #pragma once
 
-#include "index.hpp"
+#include <filesystem>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace fstree {
 
+class url;
+
 class remote {
  public:
+  static std::unique_ptr<remote> create(const url& address);
+
   virtual ~remote() = default;
 
   // Returns true if the object with the given hash is present in the remote.

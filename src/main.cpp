@@ -3,7 +3,7 @@
 #include "filesystem.hpp"
 #include "ignore.hpp"
 #include "index.hpp"
-#include "remote_grpc.hpp"
+#include "remote_jolt.hpp"
 #include "sha1.hpp"
 #include "thread.hpp"
 #include "url.hpp"
@@ -63,7 +63,6 @@ std::filesystem::path current_path() { return std::filesystem::current_path(); }
 
 int cmd_fstree(const fstree::argparser& args) {
   fstree::url remoteurl(args.get_option("--remote"));
-  if (remoteurl.scheme() != "tcp") throw std::invalid_argument("unsupported scheme: " + remoteurl.scheme());
   if (remoteurl.host().empty()) throw std::invalid_argument("invalid remote URL: " + args.get_option("--remote"));
 
   std::filesystem::path cachedir = args.get_option_path("--cache");
@@ -162,10 +161,10 @@ int cmd_fstree(const fstree::argparser& args) {
     std::string tree = args[1];
     if (tree.empty()) throw std::invalid_argument("missing tree argument");
 
-    fstree::remote_grpc remote(remoteurl);
+    std::unique_ptr<fstree::remote> remote = fstree::remote::create(remoteurl);
     fstree::index index;
 
-    cache.pull(index, remote, tree);
+    cache.pull(index, *remote, tree);
 
     std::cout << index.root().hash() << std::endl;
     return EXIT_SUCCESS;
@@ -180,7 +179,7 @@ int cmd_fstree(const fstree::argparser& args) {
     std::filesystem::path workspace = args.size() > 2 ? args.get_value_path(2) : current_path();
     if (workspace.empty()) throw std::invalid_argument("missing workspace argument");
 
-    fstree::remote_grpc remote(remoteurl);
+    std::unique_ptr<fstree::remote> remote = fstree::remote::create(remoteurl);
     fstree::index rindex(workspace), lindex(workspace);
 
     try {
@@ -190,7 +189,7 @@ int cmd_fstree(const fstree::argparser& args) {
       std::cerr << "warning: failed to load index: " << tolower(e.what()) << std::endl;
     }
 
-    cache.pull(rindex, remote, tree);
+    cache.pull(rindex, *remote, tree);
     rindex.sort();
     rindex.copy_metadata(lindex);
     rindex.checkout(cache, workspace);
@@ -205,11 +204,11 @@ int cmd_fstree(const fstree::argparser& args) {
     std::string tree = args[1];
     if (tree.empty()) throw std::invalid_argument("missing tree argument");
 
-    fstree::remote_grpc remote(remoteurl);
+    std::unique_ptr<fstree::remote> remote = fstree::remote::create(remoteurl);
     fstree::index index;
 
     cache.index_from_tree(tree, index);
-    cache.push(index, remote);
+    cache.push(index, *remote);
 
     std::cout << index.root().hash() << std::endl;
     return EXIT_SUCCESS;
@@ -253,7 +252,7 @@ int cmd_fstree(const fstree::argparser& args) {
     catch (const std::exception& e) {
     }
 
-    fstree::remote_grpc remote(remoteurl);
+    std::unique_ptr<fstree::remote> remote = fstree::remote::create(remoteurl);
     fstree::index index(workspace, ignores);
 
     try {
@@ -264,7 +263,7 @@ int cmd_fstree(const fstree::argparser& args) {
 
     index.refresh();
     cache.add(index);
-    cache.push(index, remote);
+    cache.push(index, *remote);
     index.save(indexfile);
 
     std::cout << index.root().hash() << std::endl;
@@ -289,7 +288,7 @@ int main(int argc, char* argv[]) {
     args.add_option_alias("--ignore", "-i");
     args.add_option("--index", ".fstree/index");
     args.add_option_alias("--index", "-x");
-    args.add_option("--remote", "tcp://localhost:9090");
+    args.add_option("--remote", "jolt://localhost:9090");
     args.add_option_alias("--remote", "-r");
     args.add_option("--threads", std::to_string(std::thread::hardware_concurrency()));
     args.add_option_alias("--threads", "-j");

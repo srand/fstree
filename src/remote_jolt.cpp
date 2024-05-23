@@ -1,4 +1,4 @@
-#include "remote_grpc.hpp"
+#include "remote_jolt.hpp"
 
 #include "filesystem.hpp"
 
@@ -12,13 +12,13 @@
 
 namespace fstree {
 
-remote_grpc::remote_grpc(const url& address) {
+remote_jolt::remote_jolt(const url& address) {
   auto channel_creds = grpc::InsecureChannelCredentials();
   _channel = grpc::CreateChannel(address.host(), channel_creds);
   _client = fstree::CacheService::NewStub(_channel);
 }
 
-void remote_grpc::write_object(const std::string& hash, const std::filesystem::path& path) {
+void remote_jolt::write_object(const std::string& hash, const std::filesystem::path& path) {
   // Set up gRPC client
   grpc::ClientContext context;
 
@@ -62,7 +62,7 @@ void remote_grpc::write_object(const std::string& hash, const std::filesystem::p
   }
 }
 
-void remote_grpc::read_object(
+void remote_jolt::read_object(
     const std::string& hash, const std::filesystem::path& path, const std::filesystem::path& temp) {
   // Set up gRPC client
   grpc::ClientContext context;
@@ -122,7 +122,7 @@ void remote_grpc::read_object(
   }
 }
 
-void remote_grpc::has_tree(
+void remote_jolt::has_tree(
     const std::string& hash, std::vector<std::string>& missing_trees, std::vector<std::string>& missing_objects) {
   // Set up gRPC client
   grpc::ClientContext context;
@@ -154,7 +154,7 @@ void remote_grpc::has_tree(
   }
 }
 
-bool remote_grpc::has_object(const std::string& hash) {
+bool remote_jolt::has_object(const std::string& hash) {
   // call has_objects with a vector of one hash
   std::vector<std::string> hashes = {hash};
   std::vector<bool> presence;
@@ -162,7 +162,7 @@ bool remote_grpc::has_object(const std::string& hash) {
   return presence[0];
 }
 
-void remote_grpc::has_objects(const std::vector<std::string>& hashes, std::vector<bool>& presence) {
+void remote_jolt::has_objects(const std::vector<std::string>& hashes, std::vector<bool>& presence) {
   // Set up gRPC client
   grpc::ClientContext context;
 

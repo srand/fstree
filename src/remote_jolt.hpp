@@ -1,7 +1,7 @@
 #pragma once
 
-#include "cache.grpc.pb.h"
-#include "cache.pb.h"
+#include "jolt.grpc.pb.h"
+#include "jolt.pb.h"
 #include "remote.hpp"
 #include "url.hpp"
 
@@ -9,12 +9,12 @@
 
 namespace fstree {
 
-class remote_grpc : public remote {
+class remote_jolt : public remote {
   std::shared_ptr<grpc::Channel> _channel;
   std::unique_ptr<fstree::CacheService::Stub> _client;
 
  public:
-  explicit remote_grpc(const url& address);
+  explicit remote_jolt(const url& address);
 
   void has_tree(
       const std::string& hash,
