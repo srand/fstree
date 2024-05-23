@@ -141,6 +141,7 @@ install(
 add_executable(
     fstree_test
     test/test_ignore.cpp
+    test/test_url.cpp
 )
 
 target_link_libraries(

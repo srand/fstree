@@ -19,8 +19,10 @@ class url {
 
   std::string host() const {
     size_t pos = _url.find("://");
-    if (pos == std::string::npos) return "";
-    pos += 3;
+    if (pos == std::string::npos)
+      pos = 0;
+    else
+      pos += 3;
     size_t end = _url.find("/", pos);
     if (end == std::string::npos) return _url.substr(pos);
     return _url.substr(pos, end - pos);
@@ -28,10 +30,10 @@ class url {
 
   std::string path() const {
     size_t pos = _url.find("://");
-    if (pos == std::string::npos) return "";
+    if (pos == std::string::npos) return "/";
     pos += 3;
     size_t end = _url.find("/", pos);
-    if (end == std::string::npos) return "";
+    if (end == std::string::npos) return "/";
     return _url.substr(end);
   }
 };
