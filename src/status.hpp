@@ -10,11 +10,11 @@ namespace fstree {
 
 class file_status : public std::filesystem::file_status {
  public:
-  enum internal_type { none = 0, regular = 1 << 24, directory = 2 << 24, symlink = 4 << 24, mask = 7 << 24 };
+  enum internal_type { none = 0u, regular = 1u << 24, directory = 2u << 24, symlink = 4u << 24, mask = 7u << 24 };
 
   // Constructor
   explicit file_status(uint32_t m) {
-    std::filesystem::perms perms = (std::filesystem::perms)(m & ~internal_type::mask);
+    std::filesystem::perms perms = (std::filesystem::perms)(m & (uint32_t)std::filesystem::perms::all);
     std::filesystem::file_type type;
 
     switch (m & internal_type::mask) {
