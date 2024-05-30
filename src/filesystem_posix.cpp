@@ -29,8 +29,8 @@ void lstat(const std::filesystem::path& path, stat& status_out) {
       break;
   }
 
-  uint64_t mtime = uint64_t(st.st_mtim.tv_sec) * 1000000000 + st.st_mtim.tv_nsec;
-  status_out.last_write_time = inode::time_type(std::chrono::nanoseconds(mtime));
+  inode::time_type mtime = uint64_t(st.st_mtim.tv_sec) * 1000000000 + st.st_mtim.tv_nsec;
+  status_out.last_write_time = mtime;
   status_out.status = file_status(status);
 }
 

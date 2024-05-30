@@ -55,8 +55,7 @@ void index::save(const std::filesystem::path& indexfile) const {
     file.write(reinterpret_cast<const char*>(&status_bits), sizeof(status_bits));
 
     // Write mtime
-    auto mtime_tp = inode->last_write_time();
-    auto mtime = std::chrono::time_point_cast<std::chrono::nanoseconds>(mtime_tp).time_since_epoch().count();
+    auto mtime = inode->last_write_time();
     file.write(reinterpret_cast<const char*>(&mtime), sizeof(mtime));
 
     if (inode->is_symlink()) {
@@ -118,11 +117,9 @@ void index::load(const std::filesystem::path& indexfile) {
     auto status = static_cast<file_status>(status_bits);
 
     // Microseconds since epoch
-    uint64_t mtime;
+    inode::time_type mtime;
     file.read(reinterpret_cast<char*>(&mtime), sizeof(mtime));
     if (!file) throw std::runtime_error("failed reading index: " + index_path.string() + ": " + std::strerror(errno));
-    // Convert to time_point
-    inode::time_type mtime_tp = std::filesystem::file_time_type{std::chrono::microseconds(mtime)};
 
     std::string target;
     if (status.is_symlink()) {
@@ -135,7 +132,7 @@ void index::load(const std::filesystem::path& indexfile) {
       if (!file) throw std::runtime_error("failed reading index: " + index_path.string() + ": " + std::strerror(errno));
     }
 
-    push_back(new fstree::inode(path, status, mtime_tp, target, hash));
+    push_back(new fstree::inode(path, status, mtime, target, hash));
   }
 }
 
