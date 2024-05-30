@@ -10,7 +10,7 @@
 namespace fstree {
 
 void sorted_recursive_directory_iterator::read_directory(
-    const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent) {
+    const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent, const ignore_list& ignores) {
   // Open the directory
   DIR* dir = opendir(abs.c_str());
   if (dir == nullptr) {
@@ -28,6 +28,11 @@ void sorted_recursive_directory_iterator::read_directory(
 
     // Skip . and ..
     if (relpath.filename() == "." || relpath.filename() == ".." || relpath.filename() == ".fstree") {
+      continue;
+    }
+
+    // Skip ignored directories
+    if (entry->d_type == DT_DIR && ignores.match(relpath)) {
       continue;
     }
 
@@ -79,7 +84,7 @@ void sorted_recursive_directory_iterator::read_directory(
       wg.add(1);
       _pool.enqueue_or_run([this, abspath, relpath, node, &wg] {
         try {
-          read_directory(abspath, relpath, node);
+          read_directory(abspath, relpath, node, _ignores);
           wg.done();
         }
         catch (const std::exception& e) {
