@@ -24,7 +24,7 @@ jobs:
         python-version: '3.x'
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip jolt
+        python -m pip install --upgrade pip jolt pyyaml
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
@@ -36,7 +36,7 @@ jobs:
         path: ${{ github.workspace }}/cache
         key: jolt-cache-${{ runner.os }}
     - name: Build package
-      run: python -m jolt -c jolt.cachedir=${{ github.workspace }}/cache build fstree -c output
+      run: python -m jolt -c jolt.cachedir=${{ github.workspace }}/cache build fstree tests -c output
     - name: Upload
       uses: actions/upload-artifact@v4
       with:

@@ -317,9 +317,6 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
     if ((*cur_tree_node)->path() == (*cur_index_node)->path()) {
       // Compare inode type
       if ((*cur_tree_node)->type() != (*cur_index_node)->type()) {
-        std::cout << "Type change " << (*cur_tree_node)->path() << " " << (*cur_tree_node)->status().str() << " "
-                  << (*cur_index_node)->status().str() << std::endl;
-
         switch ((*cur_tree_node)->type()) {
           case std::filesystem::file_type::directory:
             std::filesystem::remove_all(path / (*cur_tree_node)->path(), ec);
