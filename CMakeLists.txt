@@ -9,7 +9,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   # set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 else()
   set(CMAKE_CXX_FLAGS_DEBUG "-g")
-  set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra -Werror -pedantic")
+  set(CMAKE_CXX_FLAGS_RELEASE "-s -O3 -Wall -Wextra -Werror -pedantic")
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
