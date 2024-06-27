@@ -48,12 +48,11 @@ int error(const std::string& msg, const std::error_code& ec) {
   return EXIT_FAILURE;
 }
 
-std::string rfc3339(std::chrono::file_clock::time_point tp) {
-  // convert tp to system_clock
-  const auto now_ms = time_point_cast<std::chrono::milliseconds>(tp);
-  const auto now_s = time_point_cast<std::chrono::seconds>(now_ms);
-  const auto millis = now_ms - now_s;
-  const auto c_now = now_s.time_since_epoch().count();
+std::string rfc3339(std::chrono::nanoseconds since_epoch) {
+  // Convert time to RFC3339 format
+  auto tp = std::chrono::system_clock::time_point(std::chrono::duration_cast<std::chrono::seconds>(since_epoch));
+  auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(since_epoch - tp.time_since_epoch());
+  auto c_now = std::chrono::system_clock::to_time_t(tp);
 
   std::stringstream ss;
   ss << std::put_time(gmtime(&c_now), "%FT%T") << '.' << std::setfill('0') << std::setw(3) << millis.count() << 'Z';
@@ -136,13 +135,13 @@ int cmd_fstree(const fstree::argparser& args) {
     index.load(indexfile);
 
     for (const auto& inode : index) {
+      auto mtime = std::chrono::nanoseconds(inode->last_write_time());
       if (inode->is_symlink())
-        std::cout << std::setw(40) << inode->hash() << " " << inode->status().str() << " "
-                  << rfc3339(inode->last_write_time()) << " " << inode->path() << " -> " << inode->target()
-                  << std::endl;
+        std::cout << std::setw(40) << inode->hash() << " " << inode->status().str() << " " << rfc3339(mtime) << " "
+                  << inode->path() << " -> " << inode->target() << std::endl;
       else
-        std::cout << std::setw(40) << inode->hash() << " " << inode->status().str() << " "
-                  << rfc3339(inode->last_write_time()) << " " << inode->path() << std::endl;
+        std::cout << std::setw(40) << inode->hash() << " " << inode->status().str() << " " << rfc3339(mtime) << " "
+                  << inode->path() << std::endl;
     }
 
     return EXIT_SUCCESS;
