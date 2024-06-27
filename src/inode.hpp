@@ -13,7 +13,7 @@ namespace fstree {
 
 class inode {
  public:
-  using time_type = uint64_t;
+  using time_type = fs::file_time_type;
 
   // Constructor
   inode() : _status(file_status(std::filesystem::file_type::directory, std::filesystem::perms::none)) {}
@@ -101,8 +101,7 @@ class inode {
 
   // equality operator
   bool operator==(const inode& other) const {
-    return _path == other._path && _status.type() == other._status.type() &&
-           _status.permissions() == other._status.permissions() && _last_write_time == other._last_write_time &&
+    return _path == other._path && _status.type() == other._status.type() && _status.permissions() == other._status.permissions() && _last_write_time == other._last_write_time &&
            _target == other._target;
   }
 

@@ -10,7 +10,7 @@
 namespace fstree {
 
 void sorted_recursive_directory_iterator::read_directory(
-    const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent, const ignore_list& ignores) {
+    const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent) {
   // Open the directory
   DIR* dir = opendir(abs.c_str());
   if (dir == nullptr) {
@@ -28,11 +28,6 @@ void sorted_recursive_directory_iterator::read_directory(
 
     // Skip . and ..
     if (relpath.filename() == "." || relpath.filename() == ".." || relpath.filename() == ".fstree") {
-      continue;
-    }
-
-    // Skip ignored directories
-    if (entry->d_type == DT_DIR && ignores.match(relpath)) {
       continue;
     }
 
@@ -54,7 +49,8 @@ void sorted_recursive_directory_iterator::read_directory(
     }
 
     // convert mtime to uint64_t
-    inode::time_type mtime = uint64_t(st.st_mtim.tv_sec) * 1000000000 + st.st_mtim.tv_nsec;
+    uint64_t mtime = uint64_t(st.st_mtim.tv_sec) * 1000000000 + st.st_mtim.tv_nsec;
+    inode::time_type mtime_tp = inode::time_type(std::chrono::nanoseconds(mtime));
 
     // build status bits
     uint32_t status_bits = st.st_mode & ACCESSPERMS;
@@ -72,7 +68,7 @@ void sorted_recursive_directory_iterator::read_directory(
     file_status status(status_bits);
 
     // Add the path to the list of inodes
-    inode* node = new inode(relpath.string(), status, mtime, target);
+    inode* node = new inode(relpath.string(), status, mtime_tp, target);
     {
       std::lock_guard<std::mutex> lock(_mutex);
       _inodes.push_back(node);
@@ -84,7 +80,7 @@ void sorted_recursive_directory_iterator::read_directory(
       wg.add(1);
       _pool.enqueue_or_run([this, abspath, relpath, node, &wg] {
         try {
-          read_directory(abspath, relpath, node, _ignores);
+          read_directory(abspath, relpath, node);
           wg.done();
         }
         catch (const std::exception& e) {

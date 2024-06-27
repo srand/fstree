@@ -120,7 +120,8 @@ std::istream& operator>>(std::istream& is, inode& inode) {
 
     std::filesystem::path inode_path = inode.path();
     inode_path /= path;
-    inode.add_child(new fstree::inode(inode_path.string(), status, inode::time_type(0), target, hash));
+    inode.add_child(
+        new fstree::inode(inode_path.string(), status, inode::time_type(std::chrono::microseconds(0)), target, hash));
   }
 
   return is;
