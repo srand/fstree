@@ -13,8 +13,12 @@
 namespace fstree {
 
 remote_jolt::remote_jolt(const url& address) {
+  grpc::ChannelArguments args;
+  // Set the default compression algorithm for the channel.
+  args.SetCompressionAlgorithm(GRPC_COMPRESS_GZIP);
+
   auto channel_creds = grpc::InsecureChannelCredentials();
-  _channel = grpc::CreateChannel(address.host(), channel_creds);
+  _channel = grpc::CreateCustomChannel(address.host(), channel_creds, args);
   _client = fstree::CacheService::NewStub(_channel);
 }
 
