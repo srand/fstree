@@ -2,6 +2,7 @@
 
 #include "filesystem.hpp"
 #include "inode.hpp"
+#include "log.hpp"
 #include "thread.hpp"
 #include "thread_pool.hpp"
 #include "wait_group.hpp"
@@ -45,6 +46,7 @@ void cache::add(fstree::index& index) {
           std::error_code ec;
 
           if (inode->is_dirty()) {
+            log(log_level::debug) << "adding object: " << inode->path() << std::endl;
             inode->rehash(index.root_path());
           }
 
@@ -222,6 +224,7 @@ std::filesystem::path cache::tree_path(const inode* inode) { return tree_path(in
 
 void cache::pull_object(fstree::remote& remote, const std::string& hash) {
   if (!has_object(hash)) {
+    log(log_level::debug) << "pulling object: " << hash << std::endl;
     std::filesystem::path object_path = file_path(hash);
     remote.read_object(hash, object_path, _tmpdir);
   }
@@ -253,6 +256,7 @@ void cache::copy(const std::string& hash, const std::filesystem::path& to) {
 }
 
 void cache::push_object(fstree::remote& remote, const std::string& hash) {
+  log(log_level::debug) << "pushing object: " << hash << std::endl;
   std::filesystem::path object_path = file_path(hash);
   remote.write_object(hash, object_path);
 }

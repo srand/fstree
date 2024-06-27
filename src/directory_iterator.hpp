@@ -1,3 +1,5 @@
+#pragma once
+
 #include "ignore.hpp"
 #include "inode.hpp"
 #include "thread.hpp"

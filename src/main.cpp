@@ -3,6 +3,7 @@
 #include "filesystem.hpp"
 #include "ignore.hpp"
 #include "index.hpp"
+#include "log.hpp"
 #include "remote_jolt.hpp"
 #include "sha1.hpp"
 #include "thread.hpp"
@@ -82,6 +83,18 @@ int cmd_fstree(const fstree::argparser& args) {
   catch (const std::exception& e) {
     throw std::invalid_argument("invalid thread count: " + threads);
   }
+
+  std::string verbosity = args.get_option("--verbosity");
+  if (verbosity == "error")
+    fstree::set_log_level(fstree::log_level::error);
+  else if (verbosity == "warn")
+    fstree::set_log_level(fstree::log_level::warn);
+  else if (verbosity == "info")
+    fstree::set_log_level(fstree::log_level::info);
+  else if (verbosity == "debug")
+    fstree::set_log_level(fstree::log_level::debug);
+  else
+    fstree::set_log_level(fstree::log_level::off);
 
   if (args.size() < 1) throw std::invalid_argument("missing command argument");
 
@@ -292,6 +305,8 @@ int main(int argc, char* argv[]) {
     args.add_option_alias("--remote", "-r");
     args.add_option("--threads", std::to_string(std::thread::hardware_concurrency()));
     args.add_option_alias("--threads", "-j");
+    args.add_option("--verbosity", "");
+    args.add_option_alias("--verbosity", "-v");
     args.add_bool_option("--help");
     args.add_option_alias("--help", "-h");
     args.parse(argc, argv);
