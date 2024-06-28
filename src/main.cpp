@@ -1,9 +1,9 @@
 #include "argparser.hpp"
 #include "cache.hpp"
+#include "event.hpp"
 #include "filesystem.hpp"
 #include "ignore.hpp"
 #include "index.hpp"
-#include "log.hpp"
 #include "remote_jolt.hpp"
 #include "sha1.hpp"
 #include "thread.hpp"
@@ -83,18 +83,6 @@ int cmd_fstree(const fstree::argparser& args) {
     throw std::invalid_argument("invalid thread count: " + threads);
   }
 
-  std::string verbosity = args.get_option("--verbosity");
-  if (verbosity == "error")
-    fstree::set_log_level(fstree::log_level::error);
-  else if (verbosity == "warn")
-    fstree::set_log_level(fstree::log_level::warn);
-  else if (verbosity == "info")
-    fstree::set_log_level(fstree::log_level::info);
-  else if (verbosity == "debug")
-    fstree::set_log_level(fstree::log_level::debug);
-  else
-    fstree::set_log_level(fstree::log_level::off);
-
   if (args.size() < 1) throw std::invalid_argument("missing command argument");
 
   fstree::cache cache(cachedir);
@@ -115,7 +103,10 @@ int cmd_fstree(const fstree::argparser& args) {
       lindex.load(indexfile);
     }
     catch (const std::exception& e) {
-      std::cerr << "warning: failed to load index: " << tolower(e.what()) << std::endl;
+      if (fstree::events_enabled())
+        fstree::event("warning", indexfile, "failed to load index: " + tolower(e.what()));
+      else
+        std::cerr << "warning: failed to load index: " << tolower(e.what()) << std::endl;
     }
 
     cache.index_from_tree(tree, rindex);
@@ -198,7 +189,10 @@ int cmd_fstree(const fstree::argparser& args) {
       lindex.load(indexfile);
     }
     catch (const std::exception& e) {
-      std::cerr << "warning: failed to load index: " << tolower(e.what()) << std::endl;
+      if (fstree::events_enabled())
+        fstree::event("warning", indexfile, "failed to load index: " + tolower(e.what()));
+      else
+        std::cerr << "warning: failed to load index: " << tolower(e.what()) << std::endl;
     }
 
     cache.pull(rindex, *remote, tree);
@@ -241,7 +235,10 @@ int cmd_fstree(const fstree::argparser& args) {
       index.load(indexfile);
     }
     catch (const std::exception& e) {
-      std::cerr << "warning: failed to load index: " << tolower(e.what()) << std::endl;
+      if (fstree::events_enabled())
+        fstree::event("warning", indexfile, "failed to load index: " + tolower(e.what()));
+      else
+        std::cerr << "warning: failed to load index: " << tolower(e.what()) << std::endl;
     }
 
     index.refresh();
@@ -296,6 +293,8 @@ int main(int argc, char* argv[]) {
     args.set_env_prefix("FSTREE");
     args.add_option("--cache", fstree::cache_path().string());
     args.add_option_alias("--cache", "-c");
+    args.add_bool_option("--json");
+    args.add_option_alias("--json", "-J");
     args.add_option("--ignore", ".fstreeignore");
     args.add_option_alias("--ignore", "-i");
     args.add_option("--index", ".fstree/index");
@@ -304,13 +303,13 @@ int main(int argc, char* argv[]) {
     args.add_option_alias("--remote", "-r");
     args.add_option("--threads", std::to_string(std::thread::hardware_concurrency()));
     args.add_option_alias("--threads", "-j");
-    args.add_option("--verbosity", "");
-    args.add_option_alias("--verbosity", "-v");
     args.add_bool_option("--help");
     args.add_option_alias("--help", "-h");
     args.parse(argc, argv);
 
     if (args.has_option("--help")) return usage();
+
+    if (args.has_option("--json")) fstree::set_events_enabled();
 
     return cmd_fstree(args);
   }

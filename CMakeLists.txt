@@ -31,10 +31,10 @@ find_package(GTest CONFIG REQUIRED)
 
 set(SRCS
     src/cache.cpp
+    src/event.cpp
     src/index.cpp
     src/inode.cpp
     src/jolt.proto
-    src/log.cpp
     src/remote.cpp
     src/remote_jolt.cpp
     src/sha1.cpp

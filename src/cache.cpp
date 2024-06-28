@@ -1,8 +1,8 @@
 #include "cache.hpp"
 
+#include "event.hpp"
 #include "filesystem.hpp"
 #include "inode.hpp"
-#include "log.hpp"
 #include "thread.hpp"
 #include "thread_pool.hpp"
 #include "wait_group.hpp"
@@ -32,6 +32,8 @@ cache::cache(const std::filesystem::path& path) : _objectdir(path / "objects"), 
 }
 
 void cache::add(fstree::index& index) {
+  event("cache::add", index.root_path());
+
   pool& pool = get_pool();
   wait_group wg;
 
@@ -46,7 +48,7 @@ void cache::add(fstree::index& index) {
           std::error_code ec;
 
           if (inode->is_dirty()) {
-            log(log_level::debug) << "adding object: " << inode->path() << std::endl;
+            event("cache::add", inode->path(), "dirty");
             inode->rehash(index.root_path());
           }
 
@@ -224,7 +226,7 @@ std::filesystem::path cache::tree_path(const inode* inode) { return tree_path(in
 
 void cache::pull_object(fstree::remote& remote, const std::string& hash) {
   if (!has_object(hash)) {
-    log(log_level::debug) << "pulling object: " << hash << std::endl;
+    event("cache::pull_object", hash);
     std::filesystem::path object_path = file_path(hash);
     remote.read_object(hash, object_path, _tmpdir);
   }
@@ -232,6 +234,7 @@ void cache::pull_object(fstree::remote& remote, const std::string& hash) {
 
 void cache::pull_tree(fstree::remote& remote, const std::string& hash) {
   if (!has_tree(hash)) {
+    event("cache::pull_tree", hash);
     std::filesystem::path object_path = tree_path(hash);
     remote.read_object(hash, object_path, _tmpdir);
   }
@@ -256,17 +259,20 @@ void cache::copy(const std::string& hash, const std::filesystem::path& to) {
 }
 
 void cache::push_object(fstree::remote& remote, const std::string& hash) {
-  log(log_level::debug) << "pushing object: " << hash << std::endl;
+  event("cache::push_object", hash);
   std::filesystem::path object_path = file_path(hash);
   remote.write_object(hash, object_path);
 }
 
 void cache::push_tree(fstree::remote& remote, const std::string& hash) {
+  event("cache::push_tree", hash);
   std::filesystem::path object_path = tree_path(hash);
   remote.write_object(hash, object_path);
 }
 
 void cache::push(const fstree::index& index, fstree::remote& remote) {
+  event("cache::push", index.root().hash(), index.size());
+
   pool& pool = get_pool();
   wait_group wg;
 
@@ -284,14 +290,20 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
     std::vector<std::string> missing_trees, missing_objects;
 
     // Pop the last tree from the list to check
-    std::string tree_hash = check_trees.back();
-    check_trees.pop_back();
+    std::string tree_hash;
+    {
+      std::lock_guard<std::mutex> lock(check_trees_mutex);
+      tree_hash = check_trees.back();
+      check_trees.pop_back();
+    }
 
     // Query the remote for missing trees and objects
     remote.has_tree(tree_hash, missing_trees, missing_objects);
 
     // Write missing objects in parallel
     for (const auto& hash : missing_objects) {
+      event("cache::remote_missing_object", hash);
+
       wg.add(1);
       pool.enqueue([this, &wg, &remote, hash]() {
         try {
@@ -306,6 +318,8 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
 
     // Write missing trees in parallel
     for (const auto& hash : missing_trees) {
+      event("cache::remote_missing_tree", hash);
+
       wg.add(1);
       pool.enqueue([this, &check_trees, &check_trees_mutex, &wg, &remote, hash]() {
         try {
@@ -323,12 +337,20 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
       });
     }
 
-    wg.wait_rethrow();
+    {
+      std::unique_lock<std::mutex> lock(check_trees_mutex);
+      if (!check_trees.empty()) {
+        continue;
+      }
+    }
 
+    wg.wait_rethrow();
   } while (!check_trees.empty());
 }
 
 void cache::pull(fstree::index& index, fstree::remote& remote, const std::string& tree_hash) {
+  event("cache::pull", tree_hash, index.size());
+
   pool& pool = get_pool();
   wait_group wg;
 

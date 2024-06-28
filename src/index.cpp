@@ -3,6 +3,7 @@
 
 #include "cache.hpp"
 #include "directory_iterator.hpp"
+#include "event.hpp"
 #include "filesystem.hpp"
 #include "inode.hpp"
 #include "sha1.hpp"
@@ -24,6 +25,8 @@ static const uint16_t version = 1;
 // Serializes the index to a file using run length encoding
 void index::save(const std::filesystem::path& indexfile) const {
   const std::filesystem::path& path = _root_path / indexfile;
+  event("index::save", path.string());
+
   std::error_code ec;
   std::filesystem::create_directories(path.parent_path(), ec);
   if (ec && ec.value() != EEXIST) {
@@ -73,6 +76,7 @@ void index::save(const std::filesystem::path& indexfile) const {
 // Deserializes the index from a file using run length encoding
 void index::load(const std::filesystem::path& indexfile) {
   const std::filesystem::path& index_path = _root_path / indexfile;
+  event("index::load", index_path.string());
 
   std::ifstream file(index_path, std::ios::binary);
   if (!file) {
@@ -137,6 +141,8 @@ void index::load(const std::filesystem::path& indexfile) {
 }
 
 void index::refresh() {
+  event("index::refresh", _root_path.string());
+
   sorted_recursive_directory_iterator tree(_root_path, _ignore);
 
   auto cur_tree_node = tree.begin();
@@ -253,6 +259,8 @@ void index::sort() {
 }
 
 void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
+  event("index::checkout", path.string());
+
   // Create destination directory if it doesn't exist
   std::error_code ec;
   std::filesystem::create_directories(path, ec);
