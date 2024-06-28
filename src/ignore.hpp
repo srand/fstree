@@ -38,6 +38,7 @@ class ignore_list {
     }
 
     if (pattern[0] == '!') {
+      throw std::runtime_error("negated patterns are not supported");
       _exclusive_patterns.push_back(pattern.substr(1));
     }
     else {
