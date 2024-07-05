@@ -104,7 +104,7 @@ int cmd_fstree(const fstree::argparser& args) {
     }
     catch (const std::exception& e) {
       if (fstree::events_enabled())
-        fstree::event("warning", indexfile, "failed to load index: " + tolower(e.what()));
+        fstree::event("warning", indexfile.string(), "failed to load index: " + tolower(e.what()));
       else
         std::cerr << "warning: failed to load index: " << tolower(e.what()) << std::endl;
     }
@@ -190,7 +190,7 @@ int cmd_fstree(const fstree::argparser& args) {
     }
     catch (const std::exception& e) {
       if (fstree::events_enabled())
-        fstree::event("warning", indexfile, "failed to load index: " + tolower(e.what()));
+        fstree::event("warning", indexfile.string(), "failed to load index: " + tolower(e.what()));
       else
         std::cerr << "warning: failed to load index: " << tolower(e.what()) << std::endl;
     }
@@ -236,7 +236,7 @@ int cmd_fstree(const fstree::argparser& args) {
     }
     catch (const std::exception& e) {
       if (fstree::events_enabled())
-        fstree::event("warning", indexfile, "failed to load index: " + tolower(e.what()));
+        fstree::event("warning", indexfile.string(), "failed to load index: " + tolower(e.what()));
       else
         std::cerr << "warning: failed to load index: " << tolower(e.what()) << std::endl;
     }

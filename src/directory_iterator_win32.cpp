@@ -9,7 +9,8 @@ namespace fs = std::filesystem;
 namespace fstree {
 
 void sorted_recursive_directory_iterator::read_directory(
-    const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent) {
+      const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent, const ignore_list& ignores) 
+{
   fstree::wait_group wg;
 
   DWORD error;
@@ -46,17 +47,24 @@ void sorted_recursive_directory_iterator::read_directory(
       type = fs::file_type::regular;
     }
 
+    // Skip ignored directories
+    if (type == fs::file_type::directory && ignores.match(path.string())) {
+      continue;
+    }
+
+
     // Get permissions
     fs::perms perms = fs::perms::all;
     if (result.dwFileAttributes & FILE_ATTRIBUTE_READONLY) {
       perms = fs::perms::_File_attribute_readonly;
     }
 
-    uint64_t time;
+    fstree::inode::time_type time;
     time = result.ftLastWriteTime.dwHighDateTime;
     time <<= 32;
-    time = result.ftLastWriteTime.dwLowDateTime;
-    fstree::inode::time_type mtime_tp = std::filesystem::file_time_type(std::chrono::microseconds(time));
+    time |= result.ftLastWriteTime.dwLowDateTime;
+    time -= 116444736000000000LL;
+    time *= 100;
 
     // Status
     file_status status(type, perms);
@@ -71,7 +79,7 @@ void sorted_recursive_directory_iterator::read_directory(
       }
     }
 
-    inode* child = new inode(path.string(), status, mtime_tp, target.string());
+    inode* child = new inode(path.string(), status, time, target.string());
     {
       std::lock_guard<std::mutex> lock(_mutex);
       _inodes.push_back(child);
@@ -81,9 +89,9 @@ void sorted_recursive_directory_iterator::read_directory(
     // Recurse if it's a directory
     if (type == fs::file_type::directory) {
       wg.add(1);
-      _pool.enqueue_or_run([this, abs, name, path, child, &wg] {
+      _pool.enqueue_or_run([this, abs, name, path, child, ignores, &wg] {
         try {
-          read_directory(abs / name, path, child);
+          read_directory(abs / name, path, child, ignores);
           wg.done();
         }
         catch (const std::exception& e) {

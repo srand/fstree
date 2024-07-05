@@ -27,11 +27,12 @@ void lstat(const std::filesystem::path& path, stat& st) {
     throw std::runtime_error("failed to stat file: " + path.string() + ": " + ec.message());
   }
 
-  uint64_t time;
+  fstree::inode::time_type time;
   time = result.ftLastWriteTime.dwHighDateTime;
   time <<= 32;
-  time = result.ftLastWriteTime.dwLowDateTime;
-  st.last_write_time = std::filesystem::file_time_type(std::chrono::microseconds(time));
+  time |= result.ftLastWriteTime.dwLowDateTime;
+  time -= 116444736000000000LL;
+  time *= 100;
 
   std::filesystem::perms perms;
   if (result.dwFileAttributes & FILE_ATTRIBUTE_READONLY) {
@@ -53,17 +54,31 @@ void lstat(const std::filesystem::path& path, stat& st) {
   FindClose(handle);
 }
 
+// Get pid
+std::atomic<int> pid = 0;
+
+static int getpid() {
+  if (pid == 0) {
+    pid = GetCurrentProcessId();
+  }
+  return pid;
+}
+
+
 FILE* mkstemp(std::filesystem::path& path) {
   static std::atomic<int> counter;
-
+  std::string pid = std::to_string(getpid());
   FILE* fp = nullptr;
 
-  do {
-    std::string temp_path;
+  for (int i=0; i<59; i++) {
     int count = ++counter;
-    temp_path = path.string() + "/" + std::to_string(count);
+    std::string temp_path = path.string() + "\\" + pid + "-" + std::to_string(count);
     fp = fopen(temp_path.c_str(), "wx");
-  } while (!fp);
+    if (fp) {
+      path = temp_path;
+      break;
+    }
+  }
 
   return fp;
 }

@@ -10,6 +10,12 @@ import yaml
 class Grpc(CMake):
     cmakelists = "third_party/grpc/CMakeLists.txt"
 
+    options = [
+        "CARES_MSVC_STATIC_RUNTIME=ON",
+        "gRPC_MSVC_STATIC_RUNTIME=ON",
+        "protobuf_MSVC_STATIC_RUNTIME=ON",
+    ]
+
     def publish(self, artifact, tools):
         super().publish(artifact, tools)
         artifact.environ.PATH.append("bin")
