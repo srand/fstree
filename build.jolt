@@ -3,6 +3,7 @@ from jolt.plugins.cmake import CMake
 from jolt.plugins import git
 
 import functools
+import os
 import yaml
 
 
@@ -98,6 +99,9 @@ class Tests(Test):
 
         @functools.wraps(func)
         def wrap(self, *args, **kwargs):
+            if os.name in ["nt"]:
+                self.skip("Windows not supported")
+
             # Split the docstring into two parts, the first part is the
             # description of the test, the second part is the expected
             # tree structure in YAML format.
