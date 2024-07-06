@@ -9,8 +9,7 @@ namespace fs = std::filesystem;
 namespace fstree {
 
 void sorted_recursive_directory_iterator::read_directory(
-      const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent, const ignore_list& ignores) 
-{
+    const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent, const ignore_list& ignores) {
   fstree::wait_group wg;
 
   DWORD error;
@@ -52,7 +51,6 @@ void sorted_recursive_directory_iterator::read_directory(
       continue;
     }
 
-
     // Get permissions
     fs::perms perms = fs::perms::all;
     if (result.dwFileAttributes & FILE_ATTRIBUTE_READONLY) {
@@ -75,7 +73,7 @@ void sorted_recursive_directory_iterator::read_directory(
       std::error_code ec;
       target = fs::read_symlink(abs / name, ec);
       if (ec) {
-        throw std::runtime_error("failed to read symlink: " + (abs/name).string() + ": " + ec.message());
+        throw std::runtime_error("failed to read symlink: " + (abs / name).string() + ": " + ec.message());
       }
     }
 
@@ -89,7 +87,7 @@ void sorted_recursive_directory_iterator::read_directory(
     // Recurse if it's a directory
     if (type == fs::file_type::directory) {
       wg.add(1);
-      _pool.enqueue_or_run([this, abs, name, path, child, ignores, &wg] {
+      _pool->enqueue_or_run([this, abs, name, path, child, ignores, &wg] {
         try {
           read_directory(abs / name, path, child, ignores);
           wg.done();

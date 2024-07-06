@@ -8,9 +8,9 @@ endif()
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   set(CMAKE_CXX_FLAGS "/EHsc")
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-else()
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS_DEBUG "-g")
-  set(CMAKE_CXX_FLAGS_RELEASE "-s -O3 -Wall -Wextra -Werror -pedantic")
+  set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra -Werror -pedantic")
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
@@ -120,8 +120,7 @@ target_link_libraries(
         protobuf::libprotobuf
 )
 
-if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-else()
+if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
   target_link_options(
     fstree
     PRIVATE

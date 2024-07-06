@@ -16,17 +16,15 @@ namespace fstree {
 class sorted_recursive_directory_iterator {
   ignore_list _ignores;
   inode _root;
-  pool& _pool;
+  pool* _pool;
   std::mutex _mutex;
   std::vector<inode*> _inodes;
 
  public:
   sorted_recursive_directory_iterator() = default;
 
-#include <algorithm>
-
   explicit sorted_recursive_directory_iterator(const std::filesystem::path& path, const ignore_list& ignores)
-      : _ignores(ignores), _pool(get_pool()) {
+      : _ignores(ignores), _pool(&get_pool()) {
     // Read the directory recursively
     read_directory(path, "", &_root, ignores);
 

@@ -29,7 +29,11 @@ void lstat(const std::filesystem::path& path, stat& status_out) {
       break;
   }
 
+#ifdef __APPLE__
+  inode::time_type mtime = uint64_t(st.st_mtimespec.tv_sec) * 1000000000 + st.st_mtimespec.tv_nsec;
+#else
   inode::time_type mtime = uint64_t(st.st_mtim.tv_sec) * 1000000000 + st.st_mtim.tv_nsec;
+#endif
   status_out.last_write_time = mtime;
   status_out.status = file_status(status);
 }

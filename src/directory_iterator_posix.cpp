@@ -54,7 +54,11 @@ void sorted_recursive_directory_iterator::read_directory(
     }
 
     // convert mtime to uint64_t
+#ifdef __APPLE__
+    inode::time_type mtime = uint64_t(st.st_mtimespec.tv_sec) * 1000000000 + st.st_mtimespec.tv_nsec;
+#else
     inode::time_type mtime = uint64_t(st.st_mtim.tv_sec) * 1000000000 + st.st_mtim.tv_nsec;
+#endif
 
     // build status bits
     uint32_t status_bits = st.st_mode & ACCESSPERMS;
@@ -82,7 +86,7 @@ void sorted_recursive_directory_iterator::read_directory(
     // Recurse if it's a directory
     if (entry->d_type == DT_DIR) {
       wg.add(1);
-      _pool.enqueue_or_run([this, abspath, relpath, node, &wg] {
+      _pool->enqueue_or_run([this, abspath, relpath, node, &wg] {
         try {
           read_directory(abspath, relpath, node, _ignores);
           wg.done();

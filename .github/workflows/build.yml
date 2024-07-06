@@ -16,7 +16,7 @@ jobs:
         os:
           - windows-latest
           - ubuntu-latest
-          # - macos-latest
+          - macos-latest
     steps:
     - name: Set up Python
       uses: actions/setup-python@v3
