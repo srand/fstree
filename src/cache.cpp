@@ -169,7 +169,7 @@ void cache::create_dirtree(inode* node) {
   node->sort();
 
   // Create ostream from file pointer
-  std::ostringstream file;
+  std::ostringstream file(std::ios::binary);
   if (!file) {
     throw std::runtime_error(std::string("failed to create temporary file: ") + std::strerror(errno));
   }

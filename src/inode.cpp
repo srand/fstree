@@ -20,13 +20,13 @@ std::ostream& operator<<(std::ostream& os, const inode& inode) {
 
     // Write the path
     auto path = child->name();
-    size_t path_length = path.length();
+    uint64_t path_length = path.length();
     os.write(reinterpret_cast<const char*>(&path_length), sizeof(path_length));
     os.write(path.c_str(), path.length());
 
     // Write the hash
     auto& hash = child->hash();
-    size_t hash_length = hash.size();
+    uint64_t hash_length = hash.size();
     os.write(reinterpret_cast<const char*>(&hash_length), sizeof(hash_length));
     os.write(hash.c_str(), hash.size());
 
@@ -37,7 +37,7 @@ std::ostream& operator<<(std::ostream& os, const inode& inode) {
     // Write the target if it's a symlink
     if (child->is_symlink()) {
       auto& target = child->target();
-      auto target_length = target.size();
+      uint64_t target_length = target.size();
       os.write(reinterpret_cast<const char*>(&target_length), sizeof(target_length));
       os.write(target.c_str(), target.size());
     }
@@ -77,7 +77,7 @@ std::istream& operator>>(std::istream& is, inode& inode) {
   while (is.peek() != EOF) {
     // Read the path
     std::string path;
-    size_t path_length;
+    uint64_t path_length;
     is.read(reinterpret_cast<char*>(&path_length), sizeof(path_length));
     if (!is) throw std::runtime_error("failed reading tree: " + inode.hash() + ": " + std::strerror(errno));
 
@@ -87,7 +87,7 @@ std::istream& operator>>(std::istream& is, inode& inode) {
 
     // Read the hash
     std::string hash;
-    size_t hash_length;
+    uint64_t hash_length;
     is.read(reinterpret_cast<char*>(&hash_length), sizeof(hash_length));
     if (!is) throw std::runtime_error("failed reading tree: " + inode.hash() + ": " + std::strerror(errno));
 
@@ -109,7 +109,7 @@ std::istream& operator>>(std::istream& is, inode& inode) {
     // Read the target if it's a symlink
     std::string target;
     if (status.is_symlink()) {
-      size_t target_length;
+      uint64_t target_length;
       is.read(reinterpret_cast<char*>(&target_length), sizeof(target_length));
       if (!is) throw std::runtime_error("failed reading tree: " + inode.hash() + ": " + std::strerror(errno));
 

@@ -73,7 +73,7 @@ FILE* mkstemp(std::filesystem::path& path) {
   for (int i=0; i<59; i++) {
     int count = ++counter;
     std::string temp_path = path.string() + "\\" + pid + "-" + std::to_string(count);
-    fp = fopen(temp_path.c_str(), "wx");
+    fp = fopen(temp_path.c_str(), "wbx");
     if (fp) {
       path = temp_path;
       break;
