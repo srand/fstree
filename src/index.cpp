@@ -391,6 +391,12 @@ void index::checkout_node(fstree::cache& c, inode* node, const std::filesystem::
     if (ec) {
       throw std::runtime_error("failed to create symlink: " + full_path.string() + ": " + ec.message());
     }
+#ifdef _WIN32
+    std::filesystem::permissions(full_path, node->permissions(), std::filesystem::perm_options::replace|std::filesystem::perm_options::nofollow, ec);
+    if (ec) {
+      throw std::runtime_error("failed to set permissions: " + full_path.string() + ": " + ec.message());
+    }
+#endif
   }
   else if (node->is_directory()) {
     std::filesystem::create_directory(full_path, ec);

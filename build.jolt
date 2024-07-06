@@ -59,33 +59,20 @@ class Fstree(CMake):
 class Tests(Test):
     requires = ["fstree"]
 
-    @staticmethod
-    def permissions():
-        """ Generate a list of typical permissions."""
-        return [
-            0o400, 0o440, 0o444, 0o600, 0o640, 0o644, 0o660, 0o664, 0o666,
-            0o700, 0o740, 0o744, 0o750, 0o754, 0o755, 0o760, 0o764, 0o766,
-            0o770, 0o774, 0o777
-        ]
-
-    @staticmethod
-    def types():
-        return ["f", "d", "s"]
-
     def create_tree(self, tools, tree):
         # Create the expected tree structure.
         for entry in tree:
             parts = entry.split()
             if parts[0] == "f":
-                self.tools.run("touch {}", parts[2])
+                self.tools.write_file(parts[2])
             elif parts[0] == "d":
-                self.tools.run("mkdir -p {}", parts[2])
+                self.tools.mkdir(parts[2])
             elif parts[0] == "l":
-                self.tools.run("ln -s {} {}", parts[3], parts[2])
+                self.tools.symlink(parts[3], parts[2])
 
             # Set the permissions of the file or directory.
-            perms = oct(int(parts[1]))[2:]
-            self.tools.run("chmod {} {}", perms, parts[2])
+            perms = int(parts[1])
+            self.tools.chmod(parts[2], perms)
 
     def test_unittests(self):
         """
@@ -99,9 +86,6 @@ class Tests(Test):
 
         @functools.wraps(func)
         def wrap(self, *args, **kwargs):
-            if os.name in ["nt"]:
-                self.skip("Windows not supported")
-
             # Split the docstring into two parts, the first part is the
             # description of the test, the second part is the expected
             # tree structure in YAML format.
@@ -113,11 +97,7 @@ class Tests(Test):
             stream = StringIO(tree)
             conf = yaml.safe_load(stream)
 
-            # Remove the build directory.
-            self.tools.rmtree(self.tools.builddir())
-            self.tools.mkdir(self.tools.builddir())
-
-            with self.tools.cwd(self.tools.builddir()):
+            with self.tools.tmpdir(func.__name__) as t, self.tools.cwd(t.path):
                 self.tools.mkdir("expected")
                 self.tools.mkdir("actual")
 
@@ -127,16 +107,25 @@ class Tests(Test):
                 with self.tools.cwd("actual"):
                     self.create_tree(self.tools, conf.get("checkout", []))
 
-                self.tools.run("find")
-
                 # Write the tree
                 tree = self.tools.run("fstree write-tree expected")
+                self.tools.run("fstree ls-tree {}", tree)
 
                 # Checkout the tree
                 self.tools.run("fstree checkout {} actual", tree)
 
                 # Compare the expected tree structure with the actual tree
-                self.tools.run("diff -rq --exclude .fstree expected actual")
+                if os.name in ["nt"]:
+                    self.tools.run("diff.exe -rq --exclude .fstree expected actual")
+                else:
+                    self.tools.run("diff -rq --exclude .fstree expected actual")
+
+                # Compare trees
+                with self.tools.cwd("actual"):
+                    self.tools.rmtree(".fstree")
+                new_tree = self.tools.run("fstree write-tree actual")
+                self.tools.run("fstree ls-tree {}", new_tree)
+                self.assertEqual(tree, new_tree)
 
         return wrap
 
@@ -145,7 +134,7 @@ class Tests(Test):
             0o660, 0o664, 0o666, 0o700, 0o740, 0o744,
             0o750, 0o754, 0o755, 0o760, 0o764, 0o766,
             0o770, 0o774, 0o777
-        ]
+        ] if os.name != "nt" else [0o777, 0o555]
     )
     @runner
     def test_permissions_at_checkout(self):
@@ -162,7 +151,7 @@ class Tests(Test):
     @Test.parameterized([
             0o700, 0o740, 0o744, 0o750, 0o754, 0o755,
             0o760, 0o764, 0o766, 0o770, 0o774, 0o777
-        ]
+        ] if os.name != "nt" else [0o777, 0o555]
     )
     @runner
     def test_dir_permissions_at_checkout(self):
@@ -180,7 +169,7 @@ class Tests(Test):
     @Test.parameterized([
             0o700, 0o740, 0o744, 0o750, 0o754, 0o755,
             0o760, 0o764, 0o766, 0o770, 0o774, 0o777
-        ]
+        ] if os.name != "nt" else [0o777, 0o555]
     )
     @runner
     def test_type_change(self):
@@ -212,7 +201,7 @@ class Tests(Test):
             (0o700, 0o750), (0o700, 0o754), (0o700, 0o755),
             (0o700, 0o760), (0o700, 0o764), (0o700, 0o766),
             (0o700, 0o770), (0o700, 0o774), (0o700, 0o777),
-    ])
+        ] if os.name != "nt" else [(0o777, 0o555), (0o555, 0o777)])
     @runner
     def test_permissions_change(self):
         """
