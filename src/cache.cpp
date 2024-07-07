@@ -184,8 +184,10 @@ void cache::create_dirtree(inode* node) {
     throw std::runtime_error("failed to create temporary file: " + tmp.string() + ": " + std::strerror(errno));
   }
   if (fwrite(file.str().data(), 1, file.str().size(), fp) != file.str().size()) {
+    int err = errno;
     fclose(fp);
-    throw std::runtime_error("failed to write to temporary file: " + tmp.string() + ": " + std::strerror(errno));
+    std::filesystem::remove(tmp, ec);
+    throw std::runtime_error("failed to write to temporary file: " + tmp.string() + ": " + std::strerror(err));
   }
   fclose(fp);
 
@@ -195,12 +197,14 @@ void cache::create_dirtree(inode* node) {
 
   std::filesystem::path object_path = tree_path(node);
   if (std::filesystem::exists(object_path, ec)) {
+    std::filesystem::remove(tmp, ec);
     return;
   }
 
   if (!std::filesystem::create_directories(object_path.parent_path(), ec)) {
     // If the directory already exists, it's fine.
     if (ec && ec.value() != EEXIST) {
+      std::filesystem::remove(tmp, ec);
       throw std::runtime_error(
           "failed to create directory: " + object_path.parent_path().string() + ": " + ec.message());
     }
@@ -208,6 +212,7 @@ void cache::create_dirtree(inode* node) {
 
   std::filesystem::rename(tmp, object_path, ec);
   if (ec) {
+    std::filesystem::remove(tmp, ec);
     throw std::runtime_error("failed to rename temporary file: " + tmp.string() + ": " + ec.message());
   }
 }
