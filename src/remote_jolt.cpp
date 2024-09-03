@@ -14,8 +14,30 @@ namespace fstree {
 
 remote_jolt::remote_jolt(const url& address) {
   grpc::ChannelArguments args;
+
   // Set the default compression algorithm for the channel.
   args.SetCompressionAlgorithm(GRPC_COMPRESS_GZIP);
+
+  // Set service config with retry policy for the channel.
+  args.SetServiceConfigJSON(R"(
+    {
+      "methodConfig": [
+        {
+          "name": [
+            { "service": "fstree.CacheService" }
+          ],
+          "waitForReady": true,
+          "retryPolicy": {
+            "maxAttempts": 5,
+            "initialBackoff": "0.1s",
+            "maxBackoff": "30s",
+            "backoffMultiplier": 2,
+            "retryableStatusCodes": [ "UNAVAILABLE" ]
+          }
+        }
+      ]
+    }
+  )");
 
   auto channel_creds = grpc::InsecureChannelCredentials();
   _channel = grpc::CreateCustomChannel(address.host(), channel_creds, args);

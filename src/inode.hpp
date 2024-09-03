@@ -3,6 +3,7 @@
 #include "sha1.hpp"
 #include "status.hpp"
 
+#include <algorithm>
 #include <filesystem>
 #include <string>
 #include <vector>
