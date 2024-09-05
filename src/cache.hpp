@@ -1,5 +1,6 @@
 #pragma once
 
+#include "filesystem.hpp"
 #include "index.hpp"
 #include "remote.hpp"
 
@@ -9,10 +10,13 @@ namespace fstree {
 
 class cache {
   std::filesystem::path _objectdir, _tmpdir;
+  size_t _max_size;
+  size_t _max_size_slice;
+  std::chrono::seconds _retention_period{3600};
 
  public:
   // Constructor
-  explicit cache(const std::filesystem::path& path);
+  explicit cache(const std::filesystem::path& path, size_t max_size, std::chrono::seconds retention_period);
 
   // Retrieves the tree with the given hash from the cache.
   void read_tree(const std::string& hash, inode& inode);
@@ -55,9 +59,14 @@ class cache {
   // Copy the object with the given hash to the given path.
   void copy(const std::string& hash, const std::filesystem::path& to);
 
+  // Evict objects from the cache until the size is below the maximum size.
+  void evict();
+
  private:
   void create_dirtree(inode* node);
   void create_file(const std::filesystem::path& root, const inode* inode);
+  void evict_subdir(const std::filesystem::path& dir);
+
   std::filesystem::path file_path(const inode* inode);
   std::filesystem::path tree_path(const inode* inode);
   std::filesystem::path file_path(const std::string& hash);

@@ -8,7 +8,7 @@ namespace fs = std::filesystem;
 
 namespace fstree {
 
-void sorted_recursive_directory_iterator::read_directory(
+void sorted_directory_iterator::read_directory(
     const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent, const ignore_list& ignores) {
   fstree::wait_group wg;
 
@@ -57,12 +57,23 @@ void sorted_recursive_directory_iterator::read_directory(
       perms = fs::perms::_File_attribute_readonly;
     }
 
-    fstree::inode::time_type time;
-    time = result.ftLastWriteTime.dwHighDateTime;
-    time <<= 32;
-    time |= result.ftLastWriteTime.dwLowDateTime;
-    time -= 116444736000000000LL;
-    time *= 100;
+    fstree::inode::time_type mtime;
+    mtime = result.ftLastWriteTime.dwHighDateTime;
+    mtime <<= 32;
+    mtime |= result.ftLastWriteTime.dwLowDateTime;
+    mtime -= 116444736000000000LL;
+    mtime *= 100;
+
+    fstree::inode::time_type atime;
+    atime = result.ftLastAccessTime.dwHighDateTime;
+    atime <<= 32;
+    atime |= result.ftLastAccessTime.dwLowDateTime;
+    atime -= 116444736000000000LL;
+    atime *= 100;
+
+    size_t size = result.nFileSizeHigh;
+    size <<= 32;
+    size |= result.nFileSizeLow;
 
     // Status
     file_status status(type, perms);
@@ -77,7 +88,7 @@ void sorted_recursive_directory_iterator::read_directory(
       }
     }
 
-    inode* child = new inode(path.string(), status, time, target.string());
+    inode* child = new inode(path.string(), status, mtime, atime, size, target.string());
     {
       std::lock_guard<std::mutex> lock(_mutex);
       _inodes.push_back(child);
@@ -85,7 +96,7 @@ void sorted_recursive_directory_iterator::read_directory(
     }
 
     // Recurse if it's a directory
-    if (type == fs::file_type::directory) {
+    if (_recursive && type == fs::file_type::directory) {
       wg.add(1);
       _pool->enqueue_or_run([this, abs, name, path, child, ignores, &wg] {
         try {

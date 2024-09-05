@@ -1,5 +1,6 @@
 #include "cache.hpp"
 
+#include "directory_iterator.hpp"
 #include "event.hpp"
 #include "filesystem.hpp"
 #include "inode.hpp"
@@ -15,7 +16,12 @@ namespace fs = std::filesystem;
 
 namespace fstree {
 
-cache::cache(const std::filesystem::path& path) : _objectdir(path / "objects"), _tmpdir(path / "tmp") {
+cache::cache(const std::filesystem::path& path, size_t max_size, std::chrono::seconds retention_period)
+    : _objectdir(path / "objects"),
+      _tmpdir(path / "tmp"),
+      _max_size(max_size),
+      _max_size_slice(max_size >> 8),
+      _retention_period(retention_period) {
   std::error_code ec;
 
   if (!std::filesystem::exists(_objectdir, ec)) {
@@ -428,6 +434,46 @@ void cache::pull(fstree::index& index, fstree::remote& remote, const std::string
     wg.wait_rethrow();
 
     trees = std::move(new_trees);
+  }
+}
+
+void cache::evict() {
+  for (const auto& entry : sorted_directory_iterator(_objectdir, ignore_list(), false)) {
+    if (entry->is_directory()) {
+      evict_subdir(_objectdir / entry->path());
+    }
+  }
+}
+
+void cache::evict_subdir(const std::filesystem::path& dir) {
+  const auto sort_by_mtime = [](inode* a, inode* b) { return a->last_read_time() < b->last_read_time(); };
+  sorted_directory_iterator objects(dir, ignore_list(), sort_by_mtime, false);
+
+  // Summarize the size of all objects in the directory
+  size_t size = 0;
+  for (const auto& inode : objects) {
+    size += inode->size();
+  }
+
+  // Evict objects until the size is below the cache limit
+  for (const auto& inode : objects) {
+    if (size < _max_size_slice) {
+      break;
+    }
+
+    // Skip objects that have been read recently
+    auto atime = std::chrono::nanoseconds(inode->last_read_time());
+    if (atime + _retention_period > std::chrono::system_clock::now().time_since_epoch()) {
+      continue;
+    }
+
+    std::error_code ec;
+    std::filesystem::remove(dir / inode->path(), ec);
+    if (ec) {
+      throw std::runtime_error("failed to remove cache object: " + inode->hash() + ": " + ec.message());
+    }
+
+    size -= inode->size();
   }
 }
 

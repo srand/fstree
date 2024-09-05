@@ -13,23 +13,38 @@ namespace fstree {
 
 // Recursive directory iterator
 // Reads the directory recursively and sorts the inodes by path
-class sorted_recursive_directory_iterator {
-  ignore_list _ignores;
+class sorted_directory_iterator {
+ public:
+  using compare_function = std::function<bool(inode*, inode*)>;
+
+ private:
   inode _root;
   pool* _pool;
+  ignore_list _ignores;
   std::mutex _mutex;
   std::vector<inode*> _inodes;
 
- public:
-  sorted_recursive_directory_iterator() = default;
+  // Decend into subdirectories
+  bool _recursive = true;
 
-  explicit sorted_recursive_directory_iterator(const std::filesystem::path& path, const ignore_list& ignores)
-      : _ignores(ignores), _pool(&get_pool()) {
-    // Read the directory recursively
+  // Inode compare function, default is by path
+  compare_function _compare;
+
+ public:
+  sorted_directory_iterator() = default;
+
+  explicit sorted_directory_iterator(
+      const std::filesystem::path& path, const ignore_list& ignores, bool recursive = true)
+      : sorted_directory_iterator(path, ignores, [](inode* a, inode* b) { return a->path() < b->path(); }, recursive) {}
+
+  explicit sorted_directory_iterator(
+      const std::filesystem::path& path, const ignore_list& ignores, compare_function compare, bool recursive = true)
+      : _pool(&get_pool()), _ignores(ignores), _recursive(recursive), _compare(compare) {
+    // Read the root directory and maybe recursively read the subdirectories
     read_directory(path, "", &_root, ignores);
 
     // Sort the inodes by path
-    std::sort(_inodes.begin(), _inodes.end(), [](const auto& a, const auto& b) { return a->path() < b->path(); });
+    std::sort(_inodes.begin(), _inodes.end(), _compare);
 
     // Filter out ignored files and directories from the list in reverse order.
     for (auto it = _inodes.rbegin(); it != _inodes.rend();) {

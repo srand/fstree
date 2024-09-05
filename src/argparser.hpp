@@ -11,6 +11,71 @@
 
 namespace fstree {
 
+inline size_t parse_size(const std::string& size) {
+  // Parse size string. Supports these suffixes:
+  // - K = 1000
+  // - M = 1000 * 1000
+  // - G = 1000 * 1000 * 1000
+  // - T = 1000 * 1000 * 1000 * 1000
+  // - Ki = 1024
+  // - Mi = 1024 * 1024
+  // - Gi = 1024 * 1024 * 1024
+  // - Ti = 1024 * 1024 * 1024 * 1024
+  // - KB = 1000
+  // - MB = 1000 * 1000
+  // - GB = 1000 * 1000 * 1000
+  // - TB = 1000 * 1000 * 1000 * 1000
+  // - KiB = 1024
+  // - MiB = 1024 * 1024
+  // - GiB = 1024 * 1024 * 1024
+  // - TiB = 1024 * 1024 * 1024 * 1024
+  // whitespace is allowed between the number and the unit
+
+  // Remove all whitespace
+  std::string s = size;
+  s.erase(std::remove_if(s.begin(), s.end(), ::isspace), s.end());
+
+  // Remove trailing 'B' from unit
+  if (s.back() == 'B') {
+    s.pop_back();
+  }
+
+  size_t number_length = s.find_first_not_of("0123456789");
+  if (number_length == std::string::npos) {
+    // No unit
+    return std::stoull(s);
+  }
+
+  size_t number = std::stoull(s.substr(0, number_length));
+  std::string unit = s.substr(number_length);
+  if (unit == "K") {
+    return number * 1000;
+  }
+  if (unit == "M") {
+    return number * 1000 * 1000;
+  }
+  if (unit == "G") {
+    return number * 1000 * 1000 * 1000;
+  }
+  if (unit == "T") {
+    return number * 1000 * 1000 * 1000 * 1000;
+  }
+  if (unit == "Ki") {
+    return number * 1024;
+  }
+  if (unit == "Mi") {
+    return number * 1024 * 1024;
+  }
+  if (unit == "Gi") {
+    return number * 1024 * 1024 * 1024;
+  }
+  if (unit == "Ti") {
+    return number * 1024 * 1024 * 1024 * 1024;
+  }
+
+  throw std::invalid_argument("invalid size unit: " + unit);
+}
+
 class argparser {
   struct option {
     std::string value;
@@ -72,7 +137,9 @@ class argparser {
 
     // Check if the option is set in the environment
     if (!_env_prefix.empty()) {
+      // Replace - with _
       std::string env_name = _env_prefix + "_" + name.substr(2);
+      std::replace(env_name.begin(), env_name.end(), '-', '_');
 
       // Convert to uppercase
       std::transform(env_name.begin(), env_name.end(), env_name.begin(), ::toupper);

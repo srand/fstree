@@ -83,9 +83,25 @@ int cmd_fstree(const fstree::argparser& args) {
     throw std::invalid_argument("invalid thread count: " + threads);
   }
 
+  size_t cachesize = 0;
+  try {
+    cachesize = fstree::parse_size(args.get_option("--cache-size"));
+  }
+  catch (const std::exception& e) {
+    throw std::invalid_argument("invalid cache size: " + args.get_option("--cache-size"));
+  }
+
+  std::chrono::seconds retention_period;
+  try {
+    retention_period = std::chrono::seconds(std::stoi(args.get_option("--cache-retention")));
+  }
+  catch (const std::exception& e) {
+    throw std::invalid_argument("invalid cache retention period: " + args.get_option("--cache-retention"));
+  }
+
   if (args.size() < 1) throw std::invalid_argument("missing command argument");
 
-  fstree::cache cache(cachedir);
+  fstree::cache cache(cachedir, cachesize, retention_period);
 
   if (args[0] == "checkout") {
     if (args.size() < 2) throw std::invalid_argument("missing tree argument");
@@ -168,6 +184,7 @@ int cmd_fstree(const fstree::argparser& args) {
     fstree::index index;
 
     cache.pull(index, *remote, tree);
+    cache.evict();
 
     std::cout << index.root().hash() << std::endl;
     return EXIT_SUCCESS;
@@ -196,6 +213,7 @@ int cmd_fstree(const fstree::argparser& args) {
     }
 
     cache.pull(rindex, *remote, tree);
+    cache.evict();
     rindex.sort();
     rindex.copy_metadata(lindex);
     rindex.checkout(cache, workspace);
@@ -243,6 +261,7 @@ int cmd_fstree(const fstree::argparser& args) {
 
     index.refresh();
     cache.add(index);
+    cache.evict();
     index.save(indexfile);
 
     std::cout << index.root().hash() << std::endl;
@@ -272,6 +291,7 @@ int cmd_fstree(const fstree::argparser& args) {
 
     index.refresh();
     cache.add(index);
+    cache.evict();
     cache.push(index, *remote);
     index.save(indexfile);
 
@@ -293,6 +313,10 @@ int main(int argc, char* argv[]) {
     args.set_env_prefix("FSTREE");
     args.add_option("--cache", fstree::cache_path().string());
     args.add_option_alias("--cache", "-c");
+    args.add_option("--cache-size", "10GiB");
+    args.add_option_alias("--cache-size", "-cs");
+    args.add_option("--cache-retention", "3600");
+    args.add_option_alias("--cache-retention", "-cr");
     args.add_bool_option("--json");
     args.add_option_alias("--json", "-J");
     args.add_option("--ignore", ".fstreeignore");

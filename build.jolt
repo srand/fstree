@@ -39,7 +39,7 @@ class GoogleTest(CMake):
         artifact.environ.LIBPATHS.append("lib")
 
 
-@git.influence("CMakelists.txt")
+@git.influence("CMakeLists.txt")
 @git.influence("src")
 @git.influence("test")
 class Fstree(CMake):

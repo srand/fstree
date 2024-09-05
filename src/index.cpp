@@ -136,14 +136,14 @@ void index::load(const std::filesystem::path& indexfile) {
       if (!file) throw std::runtime_error("failed reading index: " + index_path.string() + ": " + std::strerror(errno));
     }
 
-    push_back(new fstree::inode(path, status, mtime, target, hash));
+    push_back(new fstree::inode(path, status, mtime, 0, 0, target, hash));
   }
 }
 
 void index::refresh() {
   event("index::refresh", _root_path.string());
 
-  sorted_recursive_directory_iterator tree(_root_path, _ignore);
+  sorted_directory_iterator tree(_root_path, _ignore);
 
   auto cur_tree_node = tree.begin();
   auto cur_index_node = _inodes.begin();
@@ -268,7 +268,7 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
     throw std::runtime_error("failed to create directory: " + path.string() + ": " + ec.message());
   }
 
-  sorted_recursive_directory_iterator tree(path, _ignore);
+  sorted_directory_iterator tree(path, _ignore);
 
   auto cur_tree_node = tree.begin();
   auto cur_index_node = _inodes.begin();
@@ -392,7 +392,9 @@ void index::checkout_node(fstree::cache& c, inode* node, const std::filesystem::
       throw std::runtime_error("failed to create symlink: " + full_path.string() + ": " + ec.message());
     }
 #ifdef _WIN32
-    std::filesystem::permissions(full_path, node->permissions(), std::filesystem::perm_options::replace|std::filesystem::perm_options::nofollow, ec);
+    std::filesystem::permissions(
+        full_path, node->permissions(),
+        std::filesystem::perm_options::replace | std::filesystem::perm_options::nofollow, ec);
     if (ec) {
       throw std::runtime_error("failed to set permissions: " + full_path.string() + ": " + ec.message());
     }

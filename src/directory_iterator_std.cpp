@@ -8,7 +8,7 @@ namespace fs = std::filesystem;
 
 namespace fstree {
 
-void sorted_recursive_directory_iterator::read_directory(
+void sorted_directory_iterator::read_directory(
     const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent, std::error_code& ec) {
   fstree::wait_group wg;
   fs::directory_iterator it(abs, ec);
@@ -57,7 +57,9 @@ void sorted_recursive_directory_iterator::read_directory(
     fs::perms perms = status.permissions();
 
     // Get mtime
-    uint64_t mtime = fs::last_write_time(path, ec).time_since_epoch().count();
+    uint64_t mtime = fs::last_write_time(path).time_since_epoch().count();
+    uint64_t atime = mtime;
+    size_t size = fs::file_size(path);
 
     // Get the target of the symlink
     fs::path target;
@@ -68,7 +70,7 @@ void sorted_recursive_directory_iterator::read_directory(
       }
     }
 
-    inode* child = new inode(path.string(), ino, file_status(type, perms), mtime, target.string());
+    inode* child = new inode(path.string(), ino, file_status(type, perms), mtime, atime, size, target.string());
     {
       std::lock_guard<std::mutex> lock(_mutex);
       _inodes.push_back(child);
@@ -76,7 +78,7 @@ void sorted_recursive_directory_iterator::read_directory(
     }
 
     // Recurse if it's a directory
-    if (type == fs::file_type::directory) {
+    if (_recursive && type == fs::file_type::directory) {
       wg.add(1);
       _pool.enqueue_or_run([this, abs, name, path, child, &wg] {
         try {

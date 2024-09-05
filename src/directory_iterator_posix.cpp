@@ -9,7 +9,7 @@
 
 namespace fstree {
 
-void sorted_recursive_directory_iterator::read_directory(
+void sorted_directory_iterator::read_directory(
     const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent, const ignore_list& ignores) {
   // Open the directory
   DIR* dir = opendir(abs.c_str());
@@ -56,8 +56,10 @@ void sorted_recursive_directory_iterator::read_directory(
     // convert mtime to uint64_t
 #ifdef __APPLE__
     inode::time_type mtime = uint64_t(st.st_mtimespec.tv_sec) * 1000000000 + st.st_mtimespec.tv_nsec;
+    inode::time_type atime = uint64_t(st.st_atimespec.tv_sec) * 1000000000 + st.st_atimespec.tv_nsec;
 #else
     inode::time_type mtime = uint64_t(st.st_mtim.tv_sec) * 1000000000 + st.st_mtim.tv_nsec;
+    inode::time_type atime = uint64_t(st.st_atim.tv_sec) * 1000000000 + st.st_atim.tv_nsec;
 #endif
 
     // build status bits
@@ -76,7 +78,7 @@ void sorted_recursive_directory_iterator::read_directory(
     file_status status(status_bits);
 
     // Add the path to the list of inodes
-    inode* node = new inode(relpath.string(), status, mtime, target);
+    inode* node = new inode(relpath.string(), status, mtime, atime, st.st_size, target);
     {
       std::lock_guard<std::mutex> lock(_mutex);
       _inodes.push_back(node);
@@ -84,7 +86,7 @@ void sorted_recursive_directory_iterator::read_directory(
     }
 
     // Recurse if it's a directory
-    if (entry->d_type == DT_DIR) {
+    if (_recursive && entry->d_type == DT_DIR) {
       wg.add(1);
       _pool->enqueue_or_run([this, abspath, relpath, node, &wg] {
         try {
