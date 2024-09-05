@@ -438,11 +438,24 @@ void cache::pull(fstree::index& index, fstree::remote& remote, const std::string
 }
 
 void cache::evict() {
+  fstree::wait_group wg;
+
   for (const auto& entry : sorted_directory_iterator(_objectdir, ignore_list(), false)) {
     if (entry->is_directory()) {
-      evict_subdir(_objectdir / entry->path());
+      wg.add(1);
+      get_pool().enqueue([this, entry, &wg]() {
+        try {
+          evict_subdir(_objectdir / entry->path());
+          wg.done();
+        }
+        catch (const std::exception& e) {
+          wg.exception(e);
+        }
+      });
     }
   }
+
+  wg.wait_rethrow();
 }
 
 void cache::evict_subdir(const std::filesystem::path& dir) {
