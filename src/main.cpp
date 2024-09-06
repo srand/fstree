@@ -291,8 +291,8 @@ int cmd_fstree(const fstree::argparser& args) {
 
     index.refresh();
     cache.add(index);
-    cache.evict();
     cache.push(index, *remote);
+    cache.evict();
     index.save(indexfile);
 
     std::cout << index.root().hash() << std::endl;
