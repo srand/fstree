@@ -251,12 +251,32 @@ void cache::pull_tree(fstree::remote& remote, const std::string& hash) {
 
 bool cache::has_object(const std::string& hash) {
   std::filesystem::path object = file_path(hash);
-  return std::filesystem::exists(object);
+  // Check if the object exists and is a regular file
+  // by opening it for reading. This modifies the
+  // access time so that the eviction algorithm can
+  // take it into account.
+
+  FILE* file = fopen(object.c_str(), "rb");
+  if (!file) {
+    return false;
+  }
+  fclose(file);
+  return true;
 }
 
 bool cache::has_tree(const std::string& hash) {
   std::filesystem::path object = tree_path(hash);
-  return std::filesystem::exists(object);
+  // Check if the object exists and is a regular file
+  // by opening it for reading. This modifies the
+  // access time so that the eviction algorithm can
+  // take it into account.
+
+  FILE* file = fopen(object.c_str(), "rb");
+  if (!file) {
+    return false;
+  }
+  fclose(file);
+  return true;
 }
 
 void cache::copy(const std::string& hash, const std::filesystem::path& to) {
