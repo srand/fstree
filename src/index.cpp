@@ -29,7 +29,7 @@ void index::save(const std::filesystem::path& indexfile) const {
 
   std::error_code ec;
   std::filesystem::create_directories(path.parent_path(), ec);
-  if (ec && ec.value() != EEXIST) {
+  if (ec) {
     throw std::runtime_error("failed to create index directory: " + path.parent_path().string() + ": " + ec.message());
   }
 
@@ -264,7 +264,7 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
   // Create destination directory if it doesn't exist
   std::error_code ec;
   std::filesystem::create_directories(path, ec);
-  if (ec && ec.value() != EEXIST) {
+  if (ec) {
     throw std::runtime_error("failed to create directory: " + path.string() + ": " + ec.message());
   }
 

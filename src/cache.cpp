@@ -24,16 +24,14 @@ cache::cache(const std::filesystem::path& path, size_t max_size, std::chrono::se
       _retention_period(retention_period) {
   std::error_code ec;
 
-  if (!std::filesystem::exists(_objectdir, ec)) {
-    if (!std::filesystem::create_directories(_objectdir, ec)) {
-      throw std::runtime_error("failed to create cache object directory: " + _objectdir.string() + ": " + ec.message());
-    }
+  std::filesystem::create_directories(_objectdir, ec);
+  if (ec) {
+    throw std::runtime_error("failed to create cache object directory: " + _objectdir.string() + ": " + ec.message());
   }
 
-  if (!std::filesystem::exists(_tmpdir, ec)) {
-    if (!std::filesystem::create_directories(_tmpdir, ec)) {
-      throw std::runtime_error("failed to create cache temporary directory: " + _tmpdir.string() + ": " + ec.message());
-    }
+  std::filesystem::create_directories(_tmpdir, ec);
+  if (ec) {
+    throw std::runtime_error("failed to create cache temporary directory: " + _tmpdir.string() + ": " + ec.message());
   }
 }
 
@@ -157,7 +155,7 @@ void cache::create_file(const std::filesystem::path& root, const inode* inode) {
 
   if (!std::filesystem::create_directories(object_path.parent_path(), ec)) {
     // If the directory already exists, it's fine.
-    if (ec && ec.value() != EEXIST) {
+    if (ec) {
       throw std::runtime_error(
           "failed to create directory: " + object_path.parent_path().string() + ": " + ec.message());
     }
@@ -209,7 +207,7 @@ void cache::create_dirtree(inode* node) {
 
   if (!std::filesystem::create_directories(object_path.parent_path(), ec)) {
     // If the directory already exists, it's fine.
-    if (ec && ec.value() != EEXIST) {
+    if (ec) {
       std::filesystem::remove(tmp, ec);
       throw std::runtime_error(
           "failed to create directory: " + object_path.parent_path().string() + ": " + ec.message());
