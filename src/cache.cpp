@@ -54,9 +54,12 @@ void cache::add(fstree::index& index) {
           if (inode->is_dirty()) {
             event("cache::add", inode->path(), "dirty");
             inode->rehash(index.root_path());
+            create_file(index.root_path(), inode);
           }
-
-          create_file(index.root_path(), inode);
+          else if (!has_object(inode->hash())) {
+            event("cache::add", inode->path(), "missing");
+            create_file(index.root_path(), inode);
+          }
 
           wg.done();
         }
@@ -65,8 +68,13 @@ void cache::add(fstree::index& index) {
         }
       });
     }
-    else if (inode->is_directory() && inode->is_dirty()) {
-      dirty_dirs.push_back(inode);
+    else if (inode->is_directory()) {
+      if (inode->is_dirty()) {
+        dirty_dirs.push_back(inode);
+      }
+      else if (!has_tree(inode->hash())) {
+        dirty_dirs.push_back(inode);
+      }
     }
   }
 
@@ -74,6 +82,13 @@ void cache::add(fstree::index& index) {
 
   // Create directory nodes in reverse order
   for (auto it = dirty_dirs.rbegin(); it != dirty_dirs.rend(); ++it) {
+    if ((*it)->is_dirty()) {
+      event("cache::add", (*it)->path(), "dirty");
+    }
+    else {
+      event("cache::add", (*it)->path(), "missing");
+    }
+
     create_dirtree(*it);
   }
 
@@ -256,7 +271,7 @@ bool cache::has_object(const std::string& hash) {
   // access time so that the eviction algorithm can
   // take it into account.
 
-  FILE* file = fopen(object.c_str(), "rb");
+  FILE* file = fopen(object.string().c_str(), "rb");
   if (!file) {
     return false;
   }
@@ -271,7 +286,7 @@ bool cache::has_tree(const std::string& hash) {
   // access time so that the eviction algorithm can
   // take it into account.
 
-  FILE* file = fopen(object.c_str(), "rb");
+  FILE* file = fopen(object.string().c_str(), "rb");
   if (!file) {
     return false;
   }
