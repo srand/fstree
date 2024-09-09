@@ -507,7 +507,14 @@ void cache::evict_subdir(const std::filesystem::path& dir) {
     // First check if the object is still present and if it is, check the access time
     // with the cache lock held.
     fstree::stat status;
-    fstree::lstat(dir / inode->path(), status);
+
+    try {
+      fstree::lstat(dir / inode->path(), status);
+    }
+    catch (const std::exception& e) {
+      // The object has likely been removed by another thread, continue with the next object.
+      continue;
+    }
 
     // Skip objects that have been accessed recently.
     auto atime = std::chrono::nanoseconds(status.last_write_time);
