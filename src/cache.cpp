@@ -21,7 +21,8 @@ cache::cache(const std::filesystem::path& path, size_t max_size, std::chrono::se
       _tmpdir(path / "tmp"),
       _max_size(max_size),
       _max_size_slice(max_size >> 8),
-      _retention_period(retention_period) {
+      _retention_period(retention_period),
+      _lock(path / "objects" / "lock") {
   std::error_code ec;
 
   std::filesystem::create_directories(_objectdir, ec);
@@ -53,14 +54,18 @@ void cache::add(fstree::index& index) {
 
           if (inode->is_dirty()) {
             inode->rehash(index.root_path());
+            auto context = _lock.lock();
             if (!has_object(inode->hash())) {
               event("cache::add", inode->path(), "dirty");
               create_file(index.root_path(), inode);
             }
           }
-          else if (!has_object(inode->hash())) {
-            event("cache::add", inode->path(), "missing");
-            create_file(index.root_path(), inode);
+          else {
+            auto context = _lock.lock();
+            if (!has_object(inode->hash())) {
+              event("cache::add", inode->path(), "missing");
+              create_file(index.root_path(), inode);
+            }
           }
 
           wg.done();
@@ -179,6 +184,11 @@ void cache::create_file(const std::filesystem::path& root, const inode* inode) {
   if (ec) {
     throw std::runtime_error("failed to copy file: " + inode->path() + ": " + ec.message());
   }
+
+  std::filesystem::permissions(object_path, std::filesystem::perms(0600), ec);
+  if (ec) {
+    throw std::runtime_error("failed to set file permissions: " + inode->path() + ": " + ec.message());
+  }
 }
 
 void cache::create_dirtree(inode* node) {
@@ -283,12 +293,8 @@ bool cache::has_tree(const std::string& hash) {
   return fstree::touch(object);
 }
 
-void cache::copy(const std::string& hash, const std::filesystem::path& to) {
-  std::error_code ec;
-  std::filesystem::copy(file_path(hash), to, std::filesystem::copy_options::overwrite_existing, ec);
-  if (ec) {
-    throw std::runtime_error("failed to copy object: " + hash + ": " + ec.message());
-  }
+void cache::copy_file(const std::string& hash, const std::filesystem::path& to) {
+  std::filesystem::copy_file(file_path(hash), to, std::filesystem::copy_options::overwrite_existing);
 }
 
 void cache::push_object(fstree::remote& remote, const std::string& hash) {
@@ -496,8 +502,15 @@ void cache::evict_subdir(const std::filesystem::path& dir) {
       break;
     }
 
-    // Skip objects that have been read recently
-    auto atime = std::chrono::nanoseconds(inode->last_write_time());
+    auto lock = _lock.lock();
+
+    // First check if the object is still present and if it is, check the access time
+    // with the cache lock held.
+    fstree::stat status;
+    fstree::lstat(dir / inode->path(), status);
+
+    // Skip objects that have been accessed recently.
+    auto atime = std::chrono::nanoseconds(status.last_write_time);
     if (atime + _retention_period > std::chrono::system_clock::now().time_since_epoch()) {
       continue;
     }
@@ -509,6 +522,8 @@ void cache::evict_subdir(const std::filesystem::path& dir) {
     }
 
     size -= inode->size();
+
+    event("cache::evict", (dir / inode->path()).string());
   }
 }
 

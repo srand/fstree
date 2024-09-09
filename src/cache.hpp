@@ -2,6 +2,7 @@
 
 #include "filesystem.hpp"
 #include "index.hpp"
+#include "lock_file.hpp"
 #include "remote.hpp"
 
 #include <string>
@@ -57,7 +58,7 @@ class cache {
   void push(const fstree::index& index, fstree::remote& remote);
 
   // Copy the object with the given hash to the given path.
-  void copy(const std::string& hash, const std::filesystem::path& to);
+  void copy_file(const std::string& hash, const std::filesystem::path& to);
 
   // Evict objects from the cache until the size is below the maximum size.
   void evict();
@@ -71,6 +72,9 @@ class cache {
   std::filesystem::path tree_path(const inode* inode);
   std::filesystem::path file_path(const std::string& hash);
   std::filesystem::path tree_path(const std::string& hash);
+
+ private:
+  lock_file _lock;
 };
 
 }  // namespace fstree

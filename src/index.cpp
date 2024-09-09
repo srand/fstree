@@ -415,7 +415,7 @@ void index::checkout_node(fstree::cache& c, inode* node, const std::filesystem::
     if (ec) {
       throw std::runtime_error("failed to remove file: " + full_path.string() + ": " + ec.message());
     }
-    c.copy(node->hash(), full_path);
+    c.copy_file(node->hash(), full_path);
     std::filesystem::permissions(full_path, node->permissions(), std::filesystem::perm_options::replace, ec);
     if (ec) {
       throw std::runtime_error("failed to set permissions: " + full_path.string() + ": " + ec.message());

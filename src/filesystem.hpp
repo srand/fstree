@@ -16,7 +16,6 @@ std::filesystem::path cache_path();
 std::filesystem::path home_path();
 void lstat(const std::filesystem::path& path, stat& st);
 FILE* mkstemp(std::filesystem::path& templ);
-
 bool touch(const std::filesystem::path& path);
 
 }  // namespace fstree

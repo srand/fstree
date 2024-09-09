@@ -85,7 +85,10 @@ FILE* mkstemp(std::filesystem::path& path) {
 }
 
 bool touch(const std::filesystem::path& path) {
-  HANDLE handle = OpenFile(path.c_str(), &ft, OPEN_EXISTING);
+  OFSTRUCT of;
+
+  HANDLE handle =
+      CreateFile(path.string().c_str(), GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
   if (handle == INVALID_HANDLE_VALUE) {
     return false;
   }
