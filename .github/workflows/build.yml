@@ -41,8 +41,88 @@ jobs:
         key: jolt-cache-${{ runner.os }}
     - name: Build package
       run: python -m jolt -c jolt.cachedir=${{ github.workspace }}/cache build fstree tests -c output
+    - name: Strip binary
+      if: matrix.os == 'ubuntu-latest'
+      run: strip output/bin/fstree
+    - name: Rename binary
+      if: matrix.os == 'windows-latest'
+      run: mv output/bin/fstree.exe output/bin/fstree-windows-x86_64.exe
+    - name: Rename binary
+      if: matrix.os == 'ubuntu-latest'
+      run: mv output/bin/fstree output/bin/fstree-linux-x86_64
+    - name: Rename binary
+      if: matrix.os == 'macos-latest'
+      run: mv output/bin/fstree output/bin/fstree-darwin-x86_64
     - name: Upload
       uses: actions/upload-artifact@v4
       with:
         name: binary-${{ matrix.os }}
         path: output
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: write
+    steps:
+    - name: Download
+      uses: actions/download-artifact@v4
+      with:
+        name: binary-windows-latest
+    - name: Download
+      uses: actions/download-artifact@v4
+      with:
+        name: binary-ubuntu-latest
+    - name: Download
+      uses: actions/download-artifact@v4
+      with:
+        name: binary-macos-latest
+    - name: Remove test files
+      run: rm bin/fstree_test*
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: fstree
+        path: bin
+    - name: Get date
+      id: date
+      run: echo ::set-output name=date::$(date +%y.%m)
+    - name: Create release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.date.outputs.date }}.${{ github.run_number }}
+        release_name: ${{ steps.date.outputs.date }}.${{ github.run_number }}
+        body: |
+          This is the release of the ${{ github.run_number }} build.
+        draft: false
+        prerelease: false
+    - name: Upload release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: bin/fstree-windows-x86_64.exe
+        asset_name: fstree-windows-x86_64.exe
+        asset_content_type: application/octet-stream
+    - name: Upload release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: bin/fstree-linux-x86_64
+        asset_name: fstree-linux-x86_64
+        asset_content_type: application/octet-stream
+    - name: Upload release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: bin/fstree-darwin-x86_64
+        asset_name: fstree-darwin-x86_64
+        asset_content_type: application/octet-stream
