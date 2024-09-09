@@ -52,9 +52,11 @@ void cache::add(fstree::index& index) {
           std::error_code ec;
 
           if (inode->is_dirty()) {
-            event("cache::add", inode->path(), "dirty");
             inode->rehash(index.root_path());
-            create_file(index.root_path(), inode);
+            if (!has_object(inode->hash())) {
+              event("cache::add", inode->path(), "dirty");
+              create_file(index.root_path(), inode);
+            }
           }
           else if (!has_object(inode->hash())) {
             event("cache::add", inode->path(), "missing");
@@ -164,9 +166,6 @@ void cache::create_file(const std::filesystem::path& root, const inode* inode) {
   std::error_code ec;
 
   std::filesystem::path object_path = file_path(inode);
-  if (std::filesystem::exists(object_path, ec)) {
-    return;
-  }
 
   if (!std::filesystem::create_directories(object_path.parent_path(), ec)) {
     // If the directory already exists, it's fine.
@@ -271,12 +270,7 @@ bool cache::has_object(const std::string& hash) {
   // access time so that the eviction algorithm can
   // take it into account.
 
-  FILE* file = fopen(object.string().c_str(), "rb");
-  if (!file) {
-    return false;
-  }
-  fclose(file);
-  return true;
+  return fstree::touch(object);
 }
 
 bool cache::has_tree(const std::string& hash) {
@@ -286,12 +280,7 @@ bool cache::has_tree(const std::string& hash) {
   // access time so that the eviction algorithm can
   // take it into account.
 
-  FILE* file = fopen(object.string().c_str(), "rb");
-  if (!file) {
-    return false;
-  }
-  fclose(file);
-  return true;
+  return fstree::touch(object);
 }
 
 void cache::copy(const std::string& hash, const std::filesystem::path& to) {
@@ -492,7 +481,7 @@ void cache::evict() {
 }
 
 void cache::evict_subdir(const std::filesystem::path& dir) {
-  const auto sort_by_mtime = [](inode* a, inode* b) { return a->last_read_time() < b->last_read_time(); };
+  const auto sort_by_mtime = [](inode* a, inode* b) { return a->last_write_time() < b->last_write_time(); };
   sorted_directory_iterator objects(dir, ignore_list(), sort_by_mtime, false);
 
   // Summarize the size of all objects in the directory
@@ -508,7 +497,7 @@ void cache::evict_subdir(const std::filesystem::path& dir) {
     }
 
     // Skip objects that have been read recently
-    auto atime = std::chrono::nanoseconds(inode->last_read_time());
+    auto atime = std::chrono::nanoseconds(inode->last_write_time());
     if (atime + _retention_period > std::chrono::system_clock::now().time_since_epoch()) {
       continue;
     }

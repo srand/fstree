@@ -24,17 +24,10 @@ class inode {
       const std::string& path,
       file_status status,
       time_type mtime,
-      time_type atime,
       size_t size,
       const std::string& target,
       const std::string& hash = "")
-      : _path(path),
-        _hash(hash),
-        _status(status),
-        _last_write_time(mtime),
-        _last_read_time(atime),
-        _size(size),
-        _target(target) {}
+      : _path(path), _hash(hash), _status(status), _last_write_time(mtime), _size(size), _target(target) {}
 
   void add_child(inode* child) {
     _children.push_back(child);
@@ -87,9 +80,6 @@ class inode {
   time_type last_write_time() const { return _last_write_time; }
 
   void set_last_write_time(time_type last_write_time) { _last_write_time = last_write_time; }
-
-  // Return the last read time
-  time_type last_read_time() const { return _last_read_time; }
 
   const std::string& target() const { return _target; }
 
@@ -144,9 +134,6 @@ class inode {
 
   // The modification time of the file
   time_type _last_write_time;
-
-  // The last time the file was read
-  time_type _last_read_time = 0;
 
   // The size of the file
   size_t _size = 0;

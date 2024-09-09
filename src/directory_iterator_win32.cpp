@@ -64,13 +64,6 @@ void sorted_directory_iterator::read_directory(
     mtime -= 116444736000000000LL;
     mtime *= 100;
 
-    fstree::inode::time_type atime;
-    atime = result.ftLastAccessTime.dwHighDateTime;
-    atime <<= 32;
-    atime |= result.ftLastAccessTime.dwLowDateTime;
-    atime -= 116444736000000000LL;
-    atime *= 100;
-
     size_t size = result.nFileSizeHigh;
     size <<= 32;
     size |= result.nFileSizeLow;
@@ -88,7 +81,7 @@ void sorted_directory_iterator::read_directory(
       }
     }
 
-    inode* child = new inode(path.string(), status, mtime, atime, size, target.string());
+    inode* child = new inode(path.string(), status, mtime, size, target.string());
     {
       std::lock_guard<std::mutex> lock(_mutex);
       _inodes.push_back(child);

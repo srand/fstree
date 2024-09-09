@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -61,6 +62,23 @@ std::filesystem::path cache_path() {
   std::filesystem::path cache = home_path();
   if (!cache.empty()) cache /= ".cache/fstree";
   return cache;
+}
+
+bool touch(const std::filesystem::path& path) {
+  int fd = open(path.c_str(), O_WRONLY, 0644);
+  if (fd == -1) {
+    return false;
+  }
+
+  // Update the access and modification time
+  int ret = futimens(fd, NULL);
+  if (ret != 0) {
+    ::close(fd);
+    return false;
+  }
+
+  ::close(fd);
+  return true;
 }
 
 }  // namespace fstree

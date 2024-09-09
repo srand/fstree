@@ -58,7 +58,6 @@ void sorted_directory_iterator::read_directory(
 
     // Get mtime
     uint64_t mtime = fs::last_write_time(path).time_since_epoch().count();
-    uint64_t atime = mtime;
     size_t size = fs::file_size(path);
 
     // Get the target of the symlink
@@ -70,7 +69,7 @@ void sorted_directory_iterator::read_directory(
       }
     }
 
-    inode* child = new inode(path.string(), ino, file_status(type, perms), mtime, atime, size, target.string());
+    inode* child = new inode(path.string(), ino, file_status(type, perms), mtime, size, target.string());
     {
       std::lock_guard<std::mutex> lock(_mutex);
       _inodes.push_back(child);

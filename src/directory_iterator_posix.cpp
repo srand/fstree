@@ -56,10 +56,8 @@ void sorted_directory_iterator::read_directory(
     // convert mtime to uint64_t
 #ifdef __APPLE__
     inode::time_type mtime = uint64_t(st.st_mtimespec.tv_sec) * 1000000000 + st.st_mtimespec.tv_nsec;
-    inode::time_type atime = uint64_t(st.st_atimespec.tv_sec) * 1000000000 + st.st_atimespec.tv_nsec;
 #else
     inode::time_type mtime = uint64_t(st.st_mtim.tv_sec) * 1000000000 + st.st_mtim.tv_nsec;
-    inode::time_type atime = uint64_t(st.st_atim.tv_sec) * 1000000000 + st.st_atim.tv_nsec;
 #endif
 
     // build status bits
@@ -78,7 +76,7 @@ void sorted_directory_iterator::read_directory(
     file_status status(status_bits);
 
     // Add the path to the list of inodes
-    inode* node = new inode(relpath.string(), status, mtime, atime, st.st_size, target);
+    inode* node = new inode(relpath.string(), status, mtime, st.st_size, target);
     {
       std::lock_guard<std::mutex> lock(_mutex);
       _inodes.push_back(node);

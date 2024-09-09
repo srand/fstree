@@ -136,7 +136,7 @@ void index::load(const std::filesystem::path& indexfile) {
       if (!file) throw std::runtime_error("failed reading index: " + index_path.string() + ": " + std::strerror(errno));
     }
 
-    push_back(new fstree::inode(path, status, mtime, 0, 0, target, hash));
+    push_back(new fstree::inode(path, status, mtime, 0, target, hash));
   }
 }
 

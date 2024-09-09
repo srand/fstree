@@ -1,7 +1,8 @@
 #include "filesystem.hpp"
 
-#include <Windows.h>
 #include <atomic>
+
+#include <Windows.h>
 
 namespace fstree {
 
@@ -37,7 +38,8 @@ void lstat(const std::filesystem::path& path, stat& st) {
   std::filesystem::perms perms;
   if (result.dwFileAttributes & FILE_ATTRIBUTE_READONLY) {
     perms = std::filesystem::perms::_File_attribute_readonly;
-  } else {
+  }
+  else {
     perms = std::filesystem::perms::all;
   }
 
@@ -64,13 +66,12 @@ static int getpid() {
   return pid;
 }
 
-
 FILE* mkstemp(std::filesystem::path& path) {
   static std::atomic<int> counter;
   std::string pid = std::to_string(getpid());
   FILE* fp = nullptr;
 
-  for (int i=0; i<59; i++) {
+  for (int i = 0; i < 59; i++) {
     int count = ++counter;
     std::string temp_path = path.string() + "\\" + pid + "-" + std::to_string(count);
     fp = fopen(temp_path.c_str(), "wbx");
@@ -82,4 +83,23 @@ FILE* mkstemp(std::filesystem::path& path) {
 
   return fp;
 }
+
+bool touch(const std::filesystem::path& path) {
+  HANDLE handle = OpenFile(path.c_str(), &ft, OPEN_EXISTING);
+  if (handle == INVALID_HANDLE_VALUE) {
+    return false;
+  }
+
+  FILETIME ft;
+  GetSystemTimeAsFileTime(&ft);
+
+  if (!SetFileTime(handle, nullptr, nullptr, &ft)) {
+    CloseHandle(handle);
+    throw std::runtime_error("failed to set file time");
+  }
+
+  CloseHandle(handle);
+  return true;
+}
+
 }  // namespace fstree
