@@ -42,7 +42,7 @@ jobs:
     - name: Build package
       run: python -m jolt -c jolt.cachedir=${{ github.workspace }}/cache build fstree tests -c output
     - name: Strip binary
-      if: matrix.os == 'ubuntu-latest'
+      if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
       run: strip output/bin/fstree
     - name: Rename binary
       if: matrix.os == 'windows-latest'
