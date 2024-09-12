@@ -39,6 +39,11 @@ jobs:
       with:
         path: ${{ github.workspace }}/cache
         key: jolt-cache-${{ runner.os }}
+    - name: Get date
+      id: date
+      run: echo ::set-output name=date::$(date +%y.%m)
+    - name: Create version header
+      run: python scripts/version.py ${{ steps.date.outputs.date }}.${{ github.run_number}}
     - name: Build package
       run: python -m jolt -c jolt.cachedir=${{ github.workspace }}/cache build fstree tests -c output
     - name: Strip binary

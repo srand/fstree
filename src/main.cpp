@@ -8,6 +8,7 @@
 #include "sha1.hpp"
 #include "thread.hpp"
 #include "url.hpp"
+#include "version.hpp"
 
 #include <cctype>
 #include <filesystem>
@@ -30,6 +31,11 @@ int usage() {
       << "fstree write-tree-push [--cache <dir>] [--ignore <conf>] [--remote <url>] [--threads <int>] [<directory>]"
       << std::endl;
   return EXIT_FAILURE;
+}
+
+int version() {
+  std::cout << "fstree " << FSTREE_VERSION << std::endl;
+  return EXIT_SUCCESS;
 }
 
 std::string tolower(std::string s) {
@@ -329,10 +335,12 @@ int main(int argc, char* argv[]) {
     args.add_option_alias("--threads", "-j");
     args.add_bool_option("--help");
     args.add_option_alias("--help", "-h");
+    args.add_bool_option("--version");
+    args.add_option_alias("--version", "-V");
     args.parse(argc, argv);
 
     if (args.has_option("--help")) return usage();
-
+    if (args.has_option("--version")) return version();
     if (args.has_option("--json")) fstree::set_events_enabled();
 
     return cmd_fstree(args);
