@@ -63,13 +63,14 @@ class cache {
   // Evict objects from the cache until the size is below the maximum size.
   void evict();
 
+  std::filesystem::path file_path(const inode* inode);
+  std::filesystem::path tree_path(const inode* inode);
+
  private:
   void create_dirtree(inode* node);
   void create_file(const std::filesystem::path& root, const inode* inode);
   void evict_subdir(const std::filesystem::path& dir);
 
-  std::filesystem::path file_path(const inode* inode);
-  std::filesystem::path tree_path(const inode* inode);
   std::filesystem::path file_path(const std::string& hash);
   std::filesystem::path tree_path(const std::string& hash);
 

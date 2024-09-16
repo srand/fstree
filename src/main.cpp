@@ -134,6 +134,7 @@ int cmd_fstree(const fstree::argparser& args) {
     cache.index_from_tree(tree, rindex);
     rindex.sort();
     rindex.copy_metadata(lindex);
+    rindex.load_ignore_from_index(cache, ignorefile);
     rindex.checkout(cache, workspace);
     rindex.save(indexfile);
 
@@ -222,6 +223,7 @@ int cmd_fstree(const fstree::argparser& args) {
     cache.evict();
     rindex.sort();
     rindex.copy_metadata(lindex);
+    rindex.load_ignore_from_index(cache, ignorefile);
     rindex.checkout(cache, workspace);
     rindex.save(indexfile);
 

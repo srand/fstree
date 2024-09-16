@@ -52,6 +52,9 @@ class ignore_list {
       if (!pattern.empty()) {
         pattern += "|";
       }
+      else {
+        pattern += "^";
+      }
       pattern += "(";
       bool star = false;
       bool skip_slash = false;
@@ -59,8 +62,8 @@ class ignore_list {
         char c = p[i];
 
         if (i == 0) {
-          pattern += "^";
           if (c == '/') {
+            pattern += "^";
             continue;
           }
           else {

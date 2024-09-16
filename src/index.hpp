@@ -55,13 +55,18 @@ class index {
   // remote tree is faster.
   void copy_metadata(fstree::index& index);
 
+  // Sorts the index by path
   void sort();
+
+  // Load the ignore file from the index
+  void load_ignore_from_index(fstree::cache& cache, const std::filesystem::path& path);
 
   void load(const std::filesystem::path& file);
   void save(const std::filesystem::path& file) const;
 
  private:
   void checkout_node(fstree::cache& c, inode* node, const std::filesystem::path& path);
+  inode* find_node_by_path(const std::filesystem::path& path);
 };
 
 }  // namespace fstree

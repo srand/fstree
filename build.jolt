@@ -59,6 +59,23 @@ class Fstree(CMake):
 class Tests(Test):
     requires = ["fstree"]
 
+    def get_config(self, tools, func, *args, **kwargs):
+        # Split the docstring into two parts, the first part is the
+        # description of the test, the second part is the expected
+        # tree structure in YAML format.
+        doc = func.__doc__.format(*args, **kwargs)
+        doc, tree = doc.split("---", 1)
+
+        # Parse the expected tree structure.
+        from io import StringIO
+        stream = StringIO(tree)
+        return yaml.safe_load(stream)
+
+    def create_ignore(self, tools, ignores):
+        # Create the ignore file.
+        ignores = "\n".join(ignores)
+        self.tools.write_file(".fstreeignore", ignores)
+
     def create_tree(self, tools, tree):
         # Create the expected tree structure.
         for entry in tree:
@@ -86,26 +103,24 @@ class Tests(Test):
 
         @functools.wraps(func)
         def wrap(self, *args, **kwargs):
-            # Split the docstring into two parts, the first part is the
-            # description of the test, the second part is the expected
-            # tree structure in YAML format.
-            doc = func.__doc__.format(*args, **kwargs)
-            doc, tree = doc.split("---", 1)
-
-            # Parse the expected tree structure.
-            from io import StringIO
-            stream = StringIO(tree)
-            conf = yaml.safe_load(stream)
+            # Get the configuration for the test from docstring.
+            conf = self.get_config(self.tools, func, *args, **kwargs)
 
             with self.tools.tmpdir(func.__name__) as t, self.tools.cwd(t.path):
+                self.tools.mkdir("tree")
                 self.tools.mkdir("expected")
                 self.tools.mkdir("actual")
 
-                with self.tools.cwd("expected"):
+                with self.tools.cwd("tree"):
+                    if "ignores" in conf:
+                        self.create_ignore(self.tools, conf["ignores"])
                     self.create_tree(self.tools, conf.get("tree", []))
 
                 with self.tools.cwd("actual"):
                     self.create_tree(self.tools, conf.get("checkout", []))
+
+                with self.tools.cwd("expected"):
+                    self.create_tree(self.tools, conf.get("expected", conf.get("tree", [])))
 
                 # Write the tree
                 tree = self.tools.run("fstree write-tree expected")
@@ -229,4 +244,77 @@ class Tests(Test):
         - d {1} dir3
         - f {1} dir3/file
         - l {1} dir3/link file
+        """
+
+    @Test.parameterized([0o777])
+    @runner
+    def test_ignore(self):
+        """
+        Test that files and directories can be ignored.
+        ---
+        ignores:
+        - dir2
+        - file2
+        tree:
+        - d {0} dir
+        - f {0} file
+        - l {0} link file
+        - d {0} dir2
+        - f {0} dir2/file
+        - l {0} dir2/link file
+        - f {0} file2
+        - d {0} dir3
+        - f {0} dir3/file
+        - l {0} dir3/link file
+        checkout:
+        - d {0} dir
+        - f {0} file
+        - l {0} link file
+        - d {0} dir3
+        - f {0} dir3/file
+        - l {0} dir3/link file
+        expected:
+        - d {0} dir
+        - f {0} file
+        - l {0} link file
+        - d {0} dir3
+        - f {0} dir3/file
+        - l {0} dir3/link file
+        """
+
+    @Test.parameterized([0o777])
+    @runner
+    def test_ignored_files_retained_on_checkout(self):
+        """
+        Test that files and directories can be ignored.
+        ---
+        ignores:
+        - dir2
+        - file2
+        tree:
+        - d {0} dir
+        - f {0} file
+        - l {0} link file
+        - d {0} dir2
+        - f {0} dir2/file
+        - l {0} dir2/link file
+        - f {0} file2
+        - d {0} dir3
+        - f {0} dir3/file
+        - l {0} dir3/link file
+        checkout:
+        - d {0} dir
+        - f {0} file
+        - l {0} link file
+        - d {0} dir2
+        - f {0} dir2/file2
+        expected:
+        - d {0} dir
+        - f {0} file
+        - l {0} link file
+        - d {0} dir2
+        - f {0} dir2/file2
+        - d {0} dir3
+        - f {0} dir3/file
+        - l {0} dir3/link file
         """

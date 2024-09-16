@@ -47,22 +47,24 @@ class sorted_directory_iterator {
     std::sort(_inodes.begin(), _inodes.end(), _compare);
 
     // Filter out ignored files and directories from the list in reverse order.
-    for (auto it = _inodes.rbegin(); it != _inodes.rend();) {
+    for (auto it = _inodes.rbegin(); it != _inodes.rend(); ++it) {
       // Checking directories already in the read_directory function
       if ((*it)->is_directory()) {
-        ++it;
         continue;
       }
 
       if (!(*it)->is_unignored() && _ignores.match((*it)->path())) {
         (*it)->ignore();
-        it = decltype(it)(_inodes.erase(std::next(it).base()));
       }
       else {
         (*it)->unignore();
-        ++it;
       }
     }
+
+    // Remove all ignored files and directories
+    _inodes.erase(
+        std::remove_if(_inodes.begin(), _inodes.end(), [](inode* inode) { return inode->is_ignored(); }),
+        _inodes.end());
   }
 
   // begin and end functions

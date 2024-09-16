@@ -10,9 +10,18 @@ TEST(Ignore, Add_Simple) {
   // ignore.add("!*.o");
   ignore.finalize();
 
-  EXPECT_EQ(ignore.match("src/main.cpp"), true);
-  EXPECT_EQ(ignore.match("src/main.h"), true);
-  EXPECT_EQ(ignore.match("src/main.o"), false);
+  EXPECT_TRUE(ignore.match("src/main.cpp"));
+  EXPECT_TRUE(ignore.match("src/main.h"));
+  EXPECT_FALSE(ignore.match("src/main.o"));
+}
+
+TEST(Ignore, Add_Simple_Path) {
+  fstree::ignore_list ignore;
+  ignore.add(".git");
+  ignore.finalize();
+
+  EXPECT_TRUE(ignore.match(".git"));
+  EXPECT_TRUE(ignore.match(".git/objects"));
 }
 
 TEST(Ignore, Add_Subdir) {
@@ -21,9 +30,9 @@ TEST(Ignore, Add_Subdir) {
   // ignore.add("!*.o");
   ignore.finalize();
 
-  EXPECT_EQ(ignore.match("src/main.cpp"), true);
-  EXPECT_EQ(ignore.match("src/main.h"), true);
-  // EXPECT_EQ(ignore.match("src/main.o"), false);
+  EXPECT_TRUE(ignore.match("src/main.cpp"));
+  EXPECT_TRUE(ignore.match("src/main.h"));
+  // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
 TEST(Ignore, Add_Recursive) {
@@ -32,9 +41,9 @@ TEST(Ignore, Add_Recursive) {
   // ignore.add("!*.o");
   ignore.finalize();
 
-  EXPECT_EQ(ignore.match("src/main.cpp"), true);
-  EXPECT_EQ(ignore.match("src/main.h"), true);
-  // EXPECT_EQ(ignore.match("src/main.o"), false);
+  EXPECT_TRUE(ignore.match("src/main.cpp"));
+  EXPECT_TRUE(ignore.match("src/main.h"));
+  // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
 TEST(Ignore, Add_Recursive_Subdir) {
@@ -43,9 +52,9 @@ TEST(Ignore, Add_Recursive_Subdir) {
   // ignore.add("!*.o");
   ignore.finalize();
 
-  EXPECT_EQ(ignore.match("src/main.cpp"), true);
-  EXPECT_EQ(ignore.match("src/main.h"), true);
-  // EXPECT_EQ(ignore.match("src/main.o"), false);
+  EXPECT_TRUE(ignore.match("src/main.cpp"));
+  EXPECT_TRUE(ignore.match("src/main.h"));
+  // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
 TEST(Ignore, Add_Recursive_Subdir_Star) {
@@ -54,9 +63,9 @@ TEST(Ignore, Add_Recursive_Subdir_Star) {
   // ignore.add("!*.o");
   ignore.finalize();
 
-  EXPECT_EQ(ignore.match("src/main.cpp"), true);
-  EXPECT_EQ(ignore.match("src/main.h"), true);
-  // EXPECT_EQ(ignore.match("src/main.o"), false);
+  EXPECT_TRUE(ignore.match("src/main.cpp"));
+  EXPECT_TRUE(ignore.match("src/main.h"));
+  // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
 TEST(Ignore, Add_Recursive_Subdir_Star_Star) {
@@ -65,9 +74,9 @@ TEST(Ignore, Add_Recursive_Subdir_Star_Star) {
   // ignore.add("!*.o");
   ignore.finalize();
 
-  EXPECT_EQ(ignore.match("src/main.cpp"), true);
-  EXPECT_EQ(ignore.match("src/main.h"), true);
-  // EXPECT_EQ(ignore.match("src/main.o"), false);
+  EXPECT_TRUE(ignore.match("src/main.cpp"));
+  EXPECT_TRUE(ignore.match("src/main.h"));
+  // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
 TEST(Ignore, Add_Recursive_Subdir_Star_Star_Star) {
@@ -76,9 +85,9 @@ TEST(Ignore, Add_Recursive_Subdir_Star_Star_Star) {
   // ignore.add("!*.o");
   ignore.finalize();
 
-  EXPECT_EQ(ignore.match("src/main.cpp"), true);
-  EXPECT_EQ(ignore.match("src/main.h"), true);
-  // EXPECT_EQ(ignore.match("src/main.o"), false);
+  EXPECT_TRUE(ignore.match("src/main.cpp"));
+  EXPECT_TRUE(ignore.match("src/main.h"));
+  // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
 TEST(Ignore, Add_Question) {
@@ -87,10 +96,10 @@ TEST(Ignore, Add_Question) {
   // ignore.add("!*.o");
   ignore.finalize();
 
-  EXPECT_EQ(ignore.match("src/main.cpp"), true);
-  EXPECT_EQ(ignore.match("src/main.hpp"), true);
-  EXPECT_EQ(ignore.match("src/main.h"), false);
-  // EXPECT_EQ(ignore.match("src/main.o"), false);
+  EXPECT_TRUE(ignore.match("src/main.cpp"));
+  EXPECT_TRUE(ignore.match("src/main.hpp"));
+  EXPECT_FALSE(ignore.match("src/main.h"));
+  // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
 TEST(Ignore, Add_Star) {
@@ -99,9 +108,9 @@ TEST(Ignore, Add_Star) {
   // ignore.add("!*.o");
   ignore.finalize();
 
-  EXPECT_EQ(ignore.match("src/main.cpp"), true);
-  EXPECT_EQ(ignore.match("src/main.h"), true);
-  // EXPECT_EQ(ignore.match("src/main.o"), false);
+  EXPECT_TRUE(ignore.match("src/main.cpp"));
+  EXPECT_TRUE(ignore.match("src/main.h"));
+  // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
 TEST(Ignore, DISABLED_Add_Negation_Star) {
@@ -111,16 +120,16 @@ TEST(Ignore, DISABLED_Add_Negation_Star) {
   ignore.add("!*.o");
   ignore.finalize();
 
-  EXPECT_EQ(ignore.match("src/main.cpp"), false);
-  EXPECT_EQ(ignore.match("src/main.h"), false);
-  EXPECT_EQ(ignore.match("src/main.o"), false);
+  EXPECT_FALSE(ignore.match("src/main.cpp"));
+  EXPECT_FALSE(ignore.match("src/main.h"));
+  EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
 TEST(Ignore, Load) {
   fstree::ignore_list ignore;
   ignore.load("test/test_ignore.txt");
 
-  EXPECT_EQ(ignore.match("src/main.cpp"), true);
-  EXPECT_EQ(ignore.match("src/main.h"), true);
-  // EXPECT_EQ(ignore.match("src/main.o"), false);
+  EXPECT_TRUE(ignore.match("src/main.cpp"));
+  EXPECT_TRUE(ignore.match("src/main.h"));
+  // EXPECT_FALSE(ignore.match("src/main.o"));
 }

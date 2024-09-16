@@ -430,4 +430,22 @@ void index::checkout_node(fstree::cache& c, inode* node, const std::filesystem::
   node->set_status(st.status);
 }
 
+inode* index::find_node_by_path(const std::filesystem::path& path) {
+  auto it = std::lower_bound(_inodes.begin(), _inodes.end(), path.string(), [](const inode* a, const std::string& b) {
+    return a->path() < b;
+  });
+  if (it != _inodes.end() && (*it)->path() == path) {
+    return *it;
+  }
+  return nullptr;
+}
+
+void index::load_ignore_from_index(fstree::cache& cache, const std::filesystem::path& path) {
+  fstree::inode* ignore_node = find_node_by_path(path);
+  if (ignore_node && ignore_node->is_file()) {
+    auto ignore_path = cache.file_path(ignore_node);
+    _ignore.load(ignore_path.string());
+  }
+}
+
 }  // namespace fstree
