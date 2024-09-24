@@ -387,7 +387,7 @@ void index::checkout_node(fstree::cache& c, inode* node, const std::filesystem::
     if (ec) {
       throw std::runtime_error("failed to remove symlink: " + full_path.string() + ": " + ec.message());
     }
-    std::filesystem::create_symlink(node->target(), full_path, ec);
+    std::filesystem::create_symlink(node->target_path(), full_path, ec);
     if (ec) {
       throw std::runtime_error("failed to create symlink: " + full_path.string() + ": " + ec.message());
     }

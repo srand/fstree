@@ -15,7 +15,7 @@ lock_file::lock_file(const std::filesystem::path& path) : _path(path), _handle(I
   _handle = CreateFileA(
       _path.string().c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
   if (_handle == INVALID_HANDLE_VALUE) {
-    throw std::runtime_error("lailed to create lock file: " + _path.string());
+    throw std::runtime_error("failed to create lock file: " + _path.string());
   }
 }
 
@@ -35,10 +35,14 @@ lock_file::context lock_file::lock() {
     throw std::runtime_error("failed to lock file: " + _path.string());
   }
 
+  _mutex.lock();
+
   return context(*this);
 }
 
 void lock_file::unlock() {
+  _mutex.unlock();
+
   if (_handle == INVALID_HANDLE_VALUE) {
     throw std::runtime_error("lock file is invalid");
   }

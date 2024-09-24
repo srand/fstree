@@ -28,12 +28,11 @@ void lstat(const std::filesystem::path& path, stat& st) {
     throw std::runtime_error("failed to stat file: " + path.string() + ": " + ec.message());
   }
 
-  fstree::inode::time_type time;
-  time = result.ftLastWriteTime.dwHighDateTime;
-  time <<= 32;
-  time |= result.ftLastWriteTime.dwLowDateTime;
-  time -= 116444736000000000LL;
-  time *= 100;
+  st.last_write_time = result.ftLastWriteTime.dwHighDateTime;
+  st.last_write_time <<= 32;
+  st.last_write_time |= result.ftLastWriteTime.dwLowDateTime;
+  st.last_write_time -= 116444736000000000ULL;
+  st.last_write_time *= 100;
 
   std::filesystem::perms perms;
   if (result.dwFileAttributes & FILE_ATTRIBUTE_READONLY) {

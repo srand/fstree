@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <mutex>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -28,6 +29,7 @@ class lock_file {
   void unlock();
 
  private:
+  std::mutex _mutex;
   std::filesystem::path _path;
 #ifdef _WIN32
   HANDLE _handle;

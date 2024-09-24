@@ -141,7 +141,7 @@ void remote_jolt::read_object(
   }
 
   // Rename the temporary file to the final path
-  std::filesystem::rename(temp_path.c_str(), path.c_str(), ec);
+  std::filesystem::rename(temp_path, path, ec);
   if (ec) {
     std::filesystem::remove(temp_path);
     throw std::runtime_error("failed to rename temporary file: " + temp_path.string() + ": " + ec.message());

@@ -83,6 +83,8 @@ class inode {
 
   const std::string& target() const { return _target; }
 
+  std::filesystem::path target_path() const { return std::filesystem::path(_target).make_preferred(); }
+
   const std::string& path() const { return _path; }
 
   std::string name() const { return std::filesystem::path(_path).filename().string(); }

@@ -220,12 +220,12 @@ int cmd_fstree(const fstree::argparser& args) {
     }
 
     cache.pull(rindex, *remote, tree);
-    cache.evict();
     rindex.sort();
     rindex.copy_metadata(lindex);
     rindex.load_ignore_from_index(cache, ignorefile);
     rindex.checkout(cache, workspace);
     rindex.save(indexfile);
+    cache.evict();
 
     std::cout << rindex.root().hash() << std::endl;
     return EXIT_SUCCESS;

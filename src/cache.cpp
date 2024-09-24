@@ -87,6 +87,10 @@ void cache::add(fstree::index& index) {
 
   wg.wait_rethrow();
 
+#ifdef _WIN32
+  auto context = _lock.lock();
+#endif
+
   // Create directory nodes in reverse order
   for (auto it = dirty_dirs.rbegin(); it != dirty_dirs.rend(); ++it) {
     if ((*it)->is_dirty()) {
@@ -104,6 +108,10 @@ void cache::add(fstree::index& index) {
 
 void cache::read_tree(const std::string& hash, inode& inode) {
   std::error_code ec;
+
+#ifdef _WIN32
+  auto lock = _lock.lock();
+#endif
 
   inode.set_hash(hash);
 
@@ -258,6 +266,9 @@ std::filesystem::path cache::tree_path(const std::string& hash) {
 std::filesystem::path cache::tree_path(const inode* inode) { return tree_path(inode->hash()); }
 
 void cache::pull_object(fstree::remote& remote, const std::string& hash) {
+#ifdef _WIN32
+  auto lock = _lock.lock();
+#endif
   if (!has_object(hash)) {
     event("cache::pull_object", hash);
     std::filesystem::path object_path = file_path(hash);
@@ -266,6 +277,9 @@ void cache::pull_object(fstree::remote& remote, const std::string& hash) {
 }
 
 void cache::pull_tree(fstree::remote& remote, const std::string& hash) {
+#ifdef _WIN32
+  auto lock = _lock.lock();
+#endif
   if (!has_tree(hash)) {
     event("cache::pull_tree", hash);
     std::filesystem::path object_path = tree_path(hash);
@@ -517,8 +531,9 @@ void cache::evict_subdir(const std::filesystem::path& dir) {
     }
 
     // Skip objects that have been accessed recently.
-    auto atime = std::chrono::nanoseconds(status.last_write_time);
-    if (atime + _retention_period > std::chrono::system_clock::now().time_since_epoch()) {
+    auto mtime = std::chrono::nanoseconds(status.last_write_time);
+    auto curtime = std::chrono::system_clock::now().time_since_epoch();
+    if (mtime + _retention_period > curtime) {
       continue;
     }
 
