@@ -106,7 +106,7 @@ class Tests(Test):
             # Get the configuration for the test from docstring.
             conf = self.get_config(self.tools, func, *args, **kwargs)
 
-            with self.tools.tmpdir(func.__name__) as t, self.tools.cwd(t.path):
+            with self.tools.tmpdir(func.__name__) as tmp, self.tools.cwd(tmp):
                 self.tools.mkdir("tree")
                 self.tools.mkdir("expected")
                 self.tools.mkdir("actual")
