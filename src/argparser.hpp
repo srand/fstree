@@ -83,6 +83,7 @@ class argparser {
     bool has_value;
   };
 
+  std::string _command;
   std::map<std::string, option*> _options;
   std::vector<std::string> _values;
   std::string _env_prefix;
@@ -91,6 +92,8 @@ class argparser {
   argparser() {}
 
   void parse(int argc, char** argv) {
+    _command = argv[0];
+
     for (int i = 1; i < argc; ++i) {
       std::string arg = argv[i];
 
@@ -205,6 +208,9 @@ class argparser {
     }
     return _values[index];
   }
+
+  // Returns the command
+  std::string command() const { return _command; }
 };
 
 }  // namespace fstree

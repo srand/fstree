@@ -11,6 +11,7 @@
 #include "version.hpp"
 
 #include <cctype>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -66,6 +67,33 @@ std::string rfc3339(std::chrono::nanoseconds since_epoch) {
 }
 
 std::filesystem::path current_path() { return std::filesystem::current_path(); }
+
+// Run cache eviction in background in a new process
+bool spawn_evict_process(
+    std::string cmd, std::filesystem::path cachedir, size_t cachesize, std::chrono::seconds retention_period) {
+  std::string cachesize_str = std::to_string(cachesize);
+  std::string retention_str = std::to_string(retention_period.count());
+#ifdef _WIN32
+  intptr_t ret = _spawnl(
+      _P_DETACH, "fstree", cmd.c_str(), "evict", "--cache", cachedir.c_str(), "--cache-size", cachesize_str.c_str(),
+      "--cache-retention", retention_str.c_str(), nullptr);
+  if (ret == -1) {
+    return false;
+  }
+#else
+  pid_t pid = fork();
+  if (pid == 0) {
+    execlp(
+        "fstree", cmd.c_str(), "evict", "--cache", cachedir.c_str(), "--cache-size", cachesize_str.c_str(),
+        "--cache-retention", retention_str.c_str(), nullptr);
+    exit(EXIT_FAILURE);
+  }
+  else if (pid < 0) {
+    return false;
+  }
+#endif
+  return true;
+}
 
 int cmd_fstree(const fstree::argparser& args) {
   fstree::url remoteurl(args.get_option("--remote"));
@@ -141,6 +169,10 @@ int cmd_fstree(const fstree::argparser& args) {
     std::cout << rindex.root().hash() << std::endl;
     return EXIT_SUCCESS;
   }
+  else if (args[0] == "evict") {
+    cache.evict();
+    return EXIT_SUCCESS;
+  }
   else if (args[0] == "ls-index") {
     if (args.size() < 1) return usage();
     std::filesystem::path workspace = args.size() > 1 ? args.get_value_path(1) : current_path();
@@ -191,7 +223,11 @@ int cmd_fstree(const fstree::argparser& args) {
     fstree::index index;
 
     cache.pull(index, *remote, tree);
-    cache.evict();
+
+    // Evict cache in background
+    if (!spawn_evict_process(args.command(), cachedir, cachesize, retention_period)) {
+      cache.evict();
+    }
 
     std::cout << index.root().hash() << std::endl;
     return EXIT_SUCCESS;
@@ -225,7 +261,10 @@ int cmd_fstree(const fstree::argparser& args) {
     rindex.load_ignore_from_index(cache, ignorefile);
     rindex.checkout(cache, workspace);
     rindex.save(indexfile);
-    cache.evict();
+
+    if (!spawn_evict_process(args.command(), cachedir, cachesize, retention_period)) {
+      cache.evict();
+    }
 
     std::cout << rindex.root().hash() << std::endl;
     return EXIT_SUCCESS;
@@ -269,8 +308,11 @@ int cmd_fstree(const fstree::argparser& args) {
 
     index.refresh();
     cache.add(index);
-    cache.evict();
     index.save(indexfile);
+
+    if (!spawn_evict_process(args.command(), cachedir, cachesize, retention_period)) {
+      cache.evict();
+    }
 
     std::cout << index.root().hash() << std::endl;
     return EXIT_SUCCESS;
@@ -300,8 +342,11 @@ int cmd_fstree(const fstree::argparser& args) {
     index.refresh();
     cache.add(index);
     cache.push(index, *remote);
-    cache.evict();
     index.save(indexfile);
+
+    if (!spawn_evict_process(args.command(), cachedir, cachesize, retention_period)) {
+      cache.evict();
+    }
 
     std::cout << index.root().hash() << std::endl;
     return EXIT_SUCCESS;
