@@ -75,7 +75,7 @@ bool spawn_evict_process(
   std::string retention_str = std::to_string(retention_period.count());
 #ifdef _WIN32
   intptr_t ret = _spawnl(
-      _P_DETACH, "fstree", cmd.c_str(), "evict", "--cache", cachedir.c_str(), "--cache-size", cachesize_str.c_str(),
+      _P_DETACH, cmd.c_str(), cmd.c_str(), "evict", "--cache", cachedir.c_str(), "--cache-size", cachesize_str.c_str(),
       "--cache-retention", retention_str.c_str(), nullptr);
   if (ret == -1) {
     return false;
@@ -84,9 +84,9 @@ bool spawn_evict_process(
   pid_t pid = fork();
   if (pid == 0) {
     execlp(
-        "fstree", cmd.c_str(), "evict", "--cache", cachedir.c_str(), "--cache-size", cachesize_str.c_str(),
+        cmd.c_str(), cmd.c_str(), "evict", "--cache", cachedir.c_str(), "--cache-size", cachesize_str.c_str(),
         "--cache-retention", retention_str.c_str(), nullptr);
-    exit(EXIT_FAILURE);
+    _exit(EXIT_FAILURE);
   }
   else if (pid < 0) {
     return false;
