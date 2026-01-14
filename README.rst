@@ -1,3 +1,8 @@
+.. image:: https://github.com/srand/fstree/actions/workflows/build.yml/badge.svg
+   :target: https://github.com/srand/fstree/actions/workflows/build.yml
+   :alt: Build status
+
+
 fstree - filesystem tree sharing and sync
 =========================================
 
