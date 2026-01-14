@@ -1,59 +1,26 @@
-from jolt import Test
-from jolt.plugins.cmake import CMake
+from jolt import Alias, Test
+from jolt.plugins import cmake
 from jolt.plugins import git
+from jolt.pkgs import grpc
+from jolt.pkgs import googletest
 
 import functools
 import os
 import yaml
 
 
-@git.influence("third_party/grpc")
-class Grpc(CMake):
-    cmakelists = "third_party/grpc/CMakeLists.txt"
-
-    options = [
-        "CARES_MSVC_STATIC_RUNTIME=ON",
-        "gRPC_MSVC_STATIC_RUNTIME=ON",
-        "protobuf_MSVC_STATIC_RUNTIME=ON",
-    ]
-
-    def publish(self, artifact, tools):
-        super().publish(artifact, tools)
-        artifact.environ.PATH.append("bin")
-        artifact.environ.PKG_CONFIG_PATH.append("lib/pkgconfig")
-        artifact.environ.CMAKE_MODULE_PATH.append("lib/cmake")
-        artifact.environ.INCPATHS.append("include")
-        artifact.environ.LIBPATHS.append("lib")
-
-
-@git.influence("third_party/googletest")
-class GoogleTest(CMake):
-    cmakelists = "third_party/googletest/CMakeLists.txt"
-
-    def publish(self, artifact, tools):
-        super().publish(artifact, tools)
-        artifact.environ.PATH.append("bin")
-        artifact.environ.PKG_CONFIG_PATH.append("lib/pkgconfig")
-        artifact.environ.CMAKE_MODULE_PATH.append("lib/cmake")
-        artifact.environ.INCPATHS.append("include")
-        artifact.environ.LIBPATHS.append("lib")
-
-
+@cmake.requires()
+@cmake.use_ninja()
 @git.influence("CMakeLists.txt")
 @git.influence("src")
 @git.influence("test")
-class Fstree(CMake):
+class Fstree(cmake.CMake):
     incremental = True
-    requires = ["googletest", "grpc"]
+    requires = ["google/test", "grpc"]
 
-    def run(self, deps, tools):
-        path = tools.getenv("CMAKE_MODULE_PATH").replace("\\", "/")
-        self.options.append(f"CMAKE_MODULE_PATH={path}")
-        super().run(deps, tools)
 
-    def publish(self, artifact, tools):
-        super().publish(artifact, tools)
-        artifact.environ.PATH.append("bin")
+class Default(Alias):
+    requires = ["tests"]
 
 
 class Tests(Test):

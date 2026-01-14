@@ -10,8 +10,10 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS_DEBUG "-g")
-  #set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra -Werror -pedantic")
+  set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra -Werror -pedantic")
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 endif()
+
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -21,7 +23,6 @@ set(CMAKE_CXX_STANDARD 20)
 ################################################################################
 
 find_package(Protobuf CONFIG REQUIRED)
-find_package(absl CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 
@@ -89,23 +90,8 @@ target_include_directories(
 
 target_link_libraries(
     fstreelib
-    PRIVATE
-        gRPC::grpc++
-        gRPC::grpc
-        gRPC::gpr
-        gRPC::upb
-        gRPC::crypto
-        gRPC::ssl
-        gRPC::cares
-        gRPC::address_sorting
-        gRPC::gpr
-        gRPC::re2
-        protobuf::libprotobuf
-        absl::check
-        absl::flags
-        absl::flags_parse
-        absl::status
-        absl::statusor
+    gRPC::grpc++
+    protobuf::libprotobuf
 )
 
 
