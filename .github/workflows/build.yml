@@ -41,6 +41,11 @@ jobs:
       with:
         path: ${{ github.workspace }}/cache
         key: jolt-cache-${{ runner.os }}
+    - name: Setup MSVC environment
+      uses: TheMrMilchmann/setup-msvc-dev@v4
+      with:
+        arch: x64
+      if: matrix.os == 'windows-latest'
     - name: Create version header
       run: python scripts/version.py ${{ github.run_number}}
     - name: Build grpc
