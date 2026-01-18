@@ -9,6 +9,13 @@ import os
 import yaml
 
 
+class GoogleTest(googletest.GoogleTest):
+    name = "google/test"
+    options = googletest.GoogleTest.options + [
+        "gtest_force_shared_crt=ON"
+    ]
+
+
 @cmake.requires()
 @cmake.use_ninja()
 @git.influence("CMakeLists.txt")
