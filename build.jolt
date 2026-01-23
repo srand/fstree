@@ -29,14 +29,19 @@ class Fstree(cmake.CMake):
 
 class PythonBuildEnv(python.PythonEnv):
     name = "py-build"
-    requirements = ["build"]
+    requirements = ["build", "twine"]
+
+
+class PythonTestEnv(python.PythonEnv):
+    name = "py-test"
+    requirements = ["pyfstree"]
 
 
 @git.influence("pyproject.toml")
 @git.influence("python")
 @git.influence("src")
-class FstreeSDist(Task):
-    name = "fstree/sdist"
+class FstreePythonDist(Task):
+    name = "fstree/dist"
     requires = ["py-build"]
 
     def run(self, deps, tools):
@@ -48,26 +53,18 @@ class FstreeSDist(Task):
             artifact.collect("*")
 
 
-@git.influence("pyproject.toml")
-@git.influence("python")
-@git.influence("src")
-class FstreeWheel(Task):
-    name = "fstree/wheel"
-    requires = ["py-build"]
+class FstreePublish(Task):
+    name = "fstree/publish"
+    requires = ["fstree=fstree/dist"]
 
     def run(self, deps, tools):
-        self.builddir = self.tools.builddir()
-        self.tools.run("python3 -m build -o {builddir} --wheel")
-
-    def publish(self, artifact, tools):
-        with tools.cwd(self.builddir):
-            artifact.collect("*")
+        with tools.cwd(deps["fstree"].path):
+            tools.run("twine upload *")
 
 
 class Default(Alias):
     requires = [
-        "fstree/sdist",
-        "fstree/wheel",
+        "fstree/dist",
         "tests",
     ]
 
