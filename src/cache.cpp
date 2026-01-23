@@ -16,6 +16,10 @@ namespace fs = std::filesystem;
 
 namespace fstree {
 
+std::filesystem::path cache::default_path() {
+  return fstree::cache_path();
+}
+
 cache::cache(const std::filesystem::path& path, size_t max_size, std::chrono::seconds retention_period)
     : _objectdir(path / "objects"),
       _tmpdir(path / "tmp"),

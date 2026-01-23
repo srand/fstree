@@ -28,8 +28,6 @@ class index {
 
   explicit index(const std::filesystem::path& root, const ignore_list& ignore) : _ignore(ignore), _root_path(root) {}
 
-  void push_back(inode* inode) { _inodes.push_back(inode); }
-
   std::vector<inode*>::iterator begin() { return _inodes.begin(); }
 
   std::vector<inode*>::iterator end() { return _inodes.end(); }
@@ -46,23 +44,32 @@ class index {
 
   const inode& root() const { return _root; }
 
+  // Checks out the index to the given path
   void checkout(fstree::cache& cache, const std::filesystem::path& path);
-  void refresh();
-
+  
   // Refreshes the index with attributes from another index.
   // For example, an index of a remote repository tree can be updated
   // with inode attributes from a local index so that checkout of the
   // remote tree is faster.
   void copy_metadata(fstree::index& index);
 
-  // Sorts the index by path
-  void sort();
+  // Loads the index from a file
+  void load(const std::filesystem::path& file);
 
   // Load the ignore file from the index
   void load_ignore_from_index(fstree::cache& cache, const std::filesystem::path& path);
 
-  void load(const std::filesystem::path& file);
+  // Adds an inode to the index
+  void push_back(inode* inode) { _inodes.push_back(inode); }
+
+  // Refreshes the index by scanning the filesystem
+  void refresh();
+
+  // Saves the index to a file
   void save(const std::filesystem::path& file) const;
+
+  // Sorts the index by path
+  void sort();
 
  private:
   void checkout_node(fstree::cache& c, inode* node, const std::filesystem::path& path);

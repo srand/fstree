@@ -364,11 +364,11 @@ int main(int argc, char* argv[]) {
 
     fstree::argparser args;
     args.set_env_prefix("FSTREE");
-    args.add_option("--cache", fstree::cache_path().string());
+    args.add_option("--cache", fstree::cache::default_path().string());
     args.add_option_alias("--cache", "-c");
-    args.add_option("--cache-size", "10GiB");
+    args.add_option("--cache-size", fstree::cache::default_max_size_string);
     args.add_option_alias("--cache-size", "-cs");
-    args.add_option("--cache-retention", "3600");
+    args.add_option("--cache-retention", std::to_string(fstree::cache::default_retention.count()));
     args.add_option_alias("--cache-retention", "-cr");
     args.add_bool_option("--json");
     args.add_option_alias("--json", "-J");

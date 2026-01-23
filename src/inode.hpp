@@ -4,6 +4,7 @@
 #include "status.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -14,7 +15,7 @@ namespace fstree {
 
 class inode {
  public:
-  using time_type = uint64_t;
+  using time_type = std::chrono::time_point<std::chrono::nanoseconds>::rep;
 
   // Constructor
   inode() : _status(file_status(std::filesystem::file_type::directory, std::filesystem::perms::none)) {}

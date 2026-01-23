@@ -1,6 +1,7 @@
 #ifndef IGNORE_HPP
 #define IGNORE_HPP
 
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <regex>
@@ -122,10 +123,10 @@ class ignore_list {
   }
 
   // Load patterns from a file
-  void load(const std::string& path) {
+  void load(const std::filesystem::path& path) {
     std::ifstream file(path);
     if (!file) {
-      throw std::runtime_error("failed to open " + path);
+      throw std::runtime_error("failed to open " + path.string() + " for reading");
     }
 
     std::string line;
@@ -156,6 +157,9 @@ class ignore_list {
     }
     return false;
   }
+
+  std::vector<std::string>::const_iterator begin() const { return _inclusive_patterns.begin(); }
+  std::vector<std::string>::const_iterator end() const { return _inclusive_patterns.end(); }
 };
 
 }  // namespace fstree

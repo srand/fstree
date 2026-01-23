@@ -1,5 +1,6 @@
 #pragma once
 
+#include "argparser.hpp"
 #include "filesystem.hpp"
 #include "index.hpp"
 #include "lock_file.hpp"
@@ -14,6 +15,13 @@ class cache {
   size_t _max_size;
   size_t _max_size_slice;
   std::chrono::seconds _retention_period{3600};
+  lock_file _lock;
+
+ public:
+  static std::filesystem::path default_path();
+  static constexpr const char* default_max_size_string = "10GiB";
+  static constexpr size_t default_max_size = 10ULL * 1024 * 1024 * 1024;  // 10 GiB
+  static constexpr std::chrono::seconds default_retention = std::chrono::hours(1); 
 
  public:
   // Constructor
@@ -73,9 +81,6 @@ class cache {
 
   std::filesystem::path file_path(const std::string& hash);
   std::filesystem::path tree_path(const std::string& hash);
-
- private:
-  lock_file _lock;
 };
 
 }  // namespace fstree

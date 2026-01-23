@@ -1,6 +1,7 @@
-from jolt import Alias, Test
+from jolt import Alias, Task, Test
 from jolt.plugins import cmake
 from jolt.plugins import git
+from jolt.plugins import python
 from jolt.pkgs import grpc
 from jolt.pkgs import googletest
 
@@ -26,8 +27,49 @@ class Fstree(cmake.CMake):
     requires = ["google/test", "grpc"]
 
 
+class PythonBuildEnv(python.PythonEnv):
+    name = "py-build"
+    requirements = ["build"]
+
+
+@git.influence("pyproject.toml")
+@git.influence("python")
+@git.influence("src")
+class FstreeSDist(Task):
+    name = "fstree/sdist"
+    requires = ["py-build"]
+
+    def run(self, deps, tools):
+        self.builddir = self.tools.builddir()
+        self.tools.run("python3 -m build -o {builddir} --sdist")
+
+    def publish(self, artifact, tools):
+        with tools.cwd(self.builddir):
+            artifact.collect("*")
+
+
+@git.influence("pyproject.toml")
+@git.influence("python")
+@git.influence("src")
+class FstreeWheel(Task):
+    name = "fstree/wheel"
+    requires = ["py-build"]
+
+    def run(self, deps, tools):
+        self.builddir = self.tools.builddir()
+        self.tools.run("python3 -m build -o {builddir} --wheel")
+
+    def publish(self, artifact, tools):
+        with tools.cwd(self.builddir):
+            artifact.collect("*")
+
+
 class Default(Alias):
-    requires = ["tests"]
+    requires = [
+        "fstree/sdist",
+        "fstree/wheel",
+        "tests",
+    ]
 
 
 class Tests(Test):

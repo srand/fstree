@@ -1,0 +1,25 @@
+# Include all source files
+include python/*.cpp
+include src/*.cpp
+include src/*.hpp
+
+# Include build configuration
+include CMakeLists.txt
+include build.jolt
+
+# Include documentation and license
+include README.rst
+include LICENSE
+include requirements.txt
+
+# Include test files
+recursive-include test *
+
+# Exclude build artifacts
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude .DS_Store
+prune build
+prune dist
+prune .git
+prune artifacts

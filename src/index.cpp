@@ -140,85 +140,6 @@ void index::load(const std::filesystem::path& indexfile) {
   }
 }
 
-void index::refresh() {
-  event("index::refresh", _root_path.string());
-
-  sorted_directory_iterator tree(_root_path, _ignore);
-
-  auto cur_tree_node = tree.begin();
-  auto cur_index_node = _inodes.begin();
-  auto end_tree_node = tree.end();
-  auto end_index_node = _inodes.end();
-
-  index new_index;
-  std::vector<inode*> rehash_inodes;
-
-  for (;;) {
-    // Reached the end of the tree. All remaining index nodes are removed.
-    if (cur_tree_node == end_tree_node) {
-      break;
-    }
-
-    // Reached the end of the index. All remaining tree nodes are added.
-    if (cur_index_node == end_index_node) {
-      std::for_each(cur_tree_node, end_tree_node, [&](auto& inode) {
-        inode->set_dirty();
-        new_index.push_back(inode);
-      });
-      break;
-    }
-
-    // Compare the current nodes
-
-    // If the tree node is less than the index node, it's added
-    if ((*cur_tree_node)->path() < (*cur_index_node)->path()) {
-      (*cur_tree_node)->set_dirty();
-      new_index.push_back(*cur_tree_node);
-      cur_tree_node++;
-      continue;
-    }
-
-    // If the tree node is greater than the index node, it's removed
-    if ((*cur_tree_node)->path() > (*cur_index_node)->path()) {
-      cur_index_node++;
-      continue;
-    }
-
-    // If the tree node is equal to the index node, it's maybe modified
-    if ((*cur_tree_node)->path() == (*cur_index_node)->path()) {
-      // Compare inode type
-      if ((*cur_tree_node)->type() != (*cur_index_node)->type()) {
-        (*cur_tree_node)->set_dirty();
-        new_index.push_back(*cur_tree_node);
-      }
-
-      // Compare inode permissions
-      else if ((*cur_tree_node)->permissions() != (*cur_index_node)->permissions()) {
-        (*cur_tree_node)->set_dirty();
-        new_index.push_back(*cur_tree_node);
-      }
-
-      // Compare modification time
-      else if ((*cur_tree_node)->last_write_time() != (*cur_index_node)->last_write_time()) {
-        (*cur_tree_node)->set_dirty();
-        new_index.push_back(*cur_tree_node);
-      }
-
-      else {
-        (*cur_tree_node)->set_hash((*cur_index_node)->hash());
-        new_index.push_back(*cur_tree_node);
-      }
-
-      cur_tree_node++;
-      cur_index_node++;
-      continue;
-    }
-  }
-
-  _inodes = std::move(new_index._inodes);
-  _root = std::move(tree.root());
-}
-
 void index::copy_metadata(fstree::index& other) {
   auto cur_index_node = _inodes.begin();
   auto cur_other_node = other._inodes.begin();
@@ -446,6 +367,85 @@ void index::load_ignore_from_index(fstree::cache& cache, const std::filesystem::
     auto ignore_path = cache.file_path(ignore_node);
     _ignore.load(ignore_path.string());
   }
+}
+
+void index::refresh() {
+  event("index::refresh", _root_path.string());
+
+  sorted_directory_iterator tree(_root_path, _ignore);
+
+  auto cur_tree_node = tree.begin();
+  auto cur_index_node = _inodes.begin();
+  auto end_tree_node = tree.end();
+  auto end_index_node = _inodes.end();
+
+  index new_index;
+  std::vector<inode*> rehash_inodes;
+
+  for (;;) {
+    // Reached the end of the tree. All remaining index nodes are removed.
+    if (cur_tree_node == end_tree_node) {
+      break;
+    }
+
+    // Reached the end of the index. All remaining tree nodes are added.
+    if (cur_index_node == end_index_node) {
+      std::for_each(cur_tree_node, end_tree_node, [&](auto& inode) {
+        inode->set_dirty();
+        new_index.push_back(inode);
+      });
+      break;
+    }
+
+    // Compare the current nodes
+
+    // If the tree node is less than the index node, it's added
+    if ((*cur_tree_node)->path() < (*cur_index_node)->path()) {
+      (*cur_tree_node)->set_dirty();
+      new_index.push_back(*cur_tree_node);
+      cur_tree_node++;
+      continue;
+    }
+
+    // If the tree node is greater than the index node, it's removed
+    if ((*cur_tree_node)->path() > (*cur_index_node)->path()) {
+      cur_index_node++;
+      continue;
+    }
+
+    // If the tree node is equal to the index node, it's maybe modified
+    if ((*cur_tree_node)->path() == (*cur_index_node)->path()) {
+      // Compare inode type
+      if ((*cur_tree_node)->type() != (*cur_index_node)->type()) {
+        (*cur_tree_node)->set_dirty();
+        new_index.push_back(*cur_tree_node);
+      }
+
+      // Compare inode permissions
+      else if ((*cur_tree_node)->permissions() != (*cur_index_node)->permissions()) {
+        (*cur_tree_node)->set_dirty();
+        new_index.push_back(*cur_tree_node);
+      }
+
+      // Compare modification time
+      else if ((*cur_tree_node)->last_write_time() != (*cur_index_node)->last_write_time()) {
+        (*cur_tree_node)->set_dirty();
+        new_index.push_back(*cur_tree_node);
+      }
+
+      else {
+        (*cur_tree_node)->set_hash((*cur_index_node)->hash());
+        new_index.push_back(*cur_tree_node);
+      }
+
+      cur_tree_node++;
+      cur_index_node++;
+      continue;
+    }
+  }
+
+  _inodes = std::move(new_index._inodes);
+  _root = std::move(tree.root());
 }
 
 }  // namespace fstree

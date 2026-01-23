@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=61.0", "pybind11>=2.6.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fstree"
+version = "0.1.0"
+description = "Python bindings for fstree - filesystem tree sharing and sync"
+readme = "README.rst"
+requires-python = ">=3.7"
+license = "GPL-3.0-or-later"
+authors = [
+    {name = "Robert Andersson", email = "rbrtandersson@gmail.com"}
+]
+keywords = ["filesystem", "sync", "tree", "fstree", "merkle"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "GPL-3.0-or-later",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: C++",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Filesystems",
+    "Topic :: System :: Networking",
+]
+dependencies = [
+    "pybind11",
+]
+
+[project.urls]
+Homepage = "https://github.com/srand/fstree"
+Repository = "https://github.com/srand/fstree.git"
+Issues = "https://github.com/srand/fstree/issues"
+
+[tool.setuptools]
+zip-safe = false
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fstree*"]
+
+[tool.cibuildwheel]
+build = ["cp37-*", "cp38-*", "cp39-*", "cp310-*", "cp311-*", "cp312-*"]
+
+[tool.cibuildwheel.linux]
+before-all = "yum install -y cmake ninja-build"
+
+[tool.cibuildwheel.macos]
+before-all = "brew install cmake ninja"
+
+[tool.cibuildwheel.windows]
+before-all = "choco install cmake ninja"
