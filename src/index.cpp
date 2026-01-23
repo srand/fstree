@@ -211,9 +211,10 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
     if (cur_index_node == end_index_node) {
       for (; cur_tree_node != end_tree_node; cur_tree_node++) {
         // Remove files that are not in the index
-        std::filesystem::remove_all(path / (*cur_tree_node)->path(), ec);
+        std::filesystem::path absolute_path = path / (*cur_tree_node)->path();
+        std::filesystem::remove_all(absolute_path, ec);
         if (ec) {
-          throw std::runtime_error("failed to remove file: " + path.string() + ": " + ec.message());
+          throw std::runtime_error("failed to remove file: " + absolute_path.string() + ": " + ec.message());
         }
       }
       break;
@@ -230,7 +231,11 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
         continue;
       }
 
-      std::filesystem::remove_all(path / (*cur_tree_node)->path());
+      std::filesystem::path absolute_path = path / (*cur_tree_node)->path();
+      std::filesystem::remove_all(absolute_path, ec);
+      if (ec) {
+        throw std::runtime_error("failed to remove directory: " + absolute_path.string() + ": " + ec.message());
+      }
       cur_tree_node++;
       continue;
     }
@@ -247,18 +252,33 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
       // Compare inode type
       if ((*cur_tree_node)->type() != (*cur_index_node)->type()) {
         switch ((*cur_tree_node)->type()) {
-          case std::filesystem::file_type::directory:
-            std::filesystem::remove_all(path / (*cur_tree_node)->path(), ec);
+          case std::filesystem::file_type::directory: {
+            std::filesystem::path absolute_path = path / (*cur_tree_node)->path();
+            std::filesystem::remove_all(absolute_path, ec);
             if (ec) {
-              throw std::runtime_error("failed to remove directory: " + path.string() + ": " + ec.message());
+              throw std::runtime_error("failed to remove directory: " + absolute_path.string() + ": " + ec.message());
+            }
+            // Skip ahead all children of the directory in the tree
+            {
+              auto dir_path = (*cur_tree_node)->path() + "/";
+              cur_tree_node++;
+              while (cur_tree_node != end_tree_node && (*cur_tree_node)->path().find(dir_path) == 0) {
+                cur_tree_node++;
+              }
+            }
+            checkout_node(cache, *cur_index_node, path);
+            cur_index_node++;
+            continue;
+          }
+
+          default: {
+            std::filesystem::path absolute_path = path / (*cur_tree_node)->path();
+            std::filesystem::remove(absolute_path, ec);
+            if (ec) {
+              throw std::runtime_error("failed to remove file: " + absolute_path.string() + ": " + ec.message());
             }
             break;
-          default:
-            std::filesystem::remove(path / (*cur_tree_node)->path(), ec);
-            if (ec) {
-              throw std::runtime_error("failed to remove file: " + path.string() + ": " + ec.message());
-            }
-            break;
+          }
         }
         checkout_node(cache, *cur_index_node, path);
 
@@ -417,8 +437,21 @@ void index::refresh() {
     if ((*cur_tree_node)->path() == (*cur_index_node)->path()) {
       // Compare inode type
       if ((*cur_tree_node)->type() != (*cur_index_node)->type()) {
+        if ((*cur_index_node)->is_directory()) {
+          // If the index node is a directory but the tree node is not,
+          // all children of the directory must be skipped
+          std::string dir_path = (*cur_index_node)->path() + "/";
+          while (cur_index_node != end_index_node && (*cur_index_node)->path().find(dir_path, 0) == 0) {
+            cur_index_node++;
+          }
+        } else {
+          cur_index_node++;
+        }
+
         (*cur_tree_node)->set_dirty();
         new_index.push_back(*cur_tree_node);
+        cur_tree_node++;
+        continue;
       }
 
       // Compare inode permissions

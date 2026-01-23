@@ -195,33 +195,81 @@ class Tests(Test):
         """
 
     @Test.parameterized([
-            0o700, 0o740, 0o744, 0o750, 0o754, 0o755,
-            0o760, 0o764, 0o766, 0o770, 0o774, 0o777
-        ] if os.name != "nt" else [0o777, 0o555]
-    )
+            (0o700, 0o700), (0o700, 0o740), (0o700, 0o744),
+            (0o700, 0o750), (0o700, 0o754), (0o700, 0o755),
+            (0o700, 0o760), (0o700, 0o764), (0o700, 0o766),
+            (0o700, 0o770), (0o700, 0o774), (0o700, 0o777),
+        ] if os.name != "nt" else [(0o777, 0o555), (0o555, 0o777)])
     @runner
-    def test_type_change(self):
+    def test_type_change_file_to_dir(self):
         """
         Test that the type of a file or directory can be changed.
         ---
         tree:
         - d {0} dir
-        - f {0} file
-        - l {0} link file
-        - f {0} file2
-        - d {0} dir2
-        - f {0} dir2/file
-        - l {0} dir2/link file
-        - f {0} file3
+        - d {0} dir/subdir
+        - f {0} dir/file
         checkout:
         - f {0} dir
-        - d {0} file
-        - f {0} link
-        - l {0} file2 link
-        - f {0} dir2
-        - d {0} dir3/file
-        - l {0} dir3/link file
-        - d {0} dir3/dir
+        """
+
+    @Test.parameterized([
+            (0o700, 0o700), (0o700, 0o740), (0o700, 0o744),
+            (0o700, 0o750), (0o700, 0o754), (0o700, 0o755),
+            (0o700, 0o760), (0o700, 0o764), (0o700, 0o766),
+            (0o700, 0o770), (0o700, 0o774), (0o700, 0o777),
+        ] if os.name != "nt" else [(0o777, 0o555), (0o555, 0o777)])
+    @runner
+    def test_type_change_dir_to_file(self):
+        """
+        Test that the type of a file or directory can be changed.
+        ---
+        tree:
+        - f {0} dir
+        checkout:
+        - d {0} dir
+        - d {0} dir/subdir
+        - f {0} dir/file
+        """
+
+    @Test.parameterized([
+            (0o700, 0o700), (0o700, 0o740), (0o700, 0o744),
+            (0o700, 0o750), (0o700, 0o754), (0o700, 0o755),
+            (0o700, 0o760), (0o700, 0o764), (0o700, 0o766),
+            (0o700, 0o770), (0o700, 0o774), (0o700, 0o777),
+        ] if os.name != "nt" else [(0o777, 0o555), (0o555, 0o777)])
+    @runner
+    def test_type_change_dir_to_link(self):
+        """
+        Test that the type of a file or directory can be changed.
+        ---
+        tree:
+        - f {0} file
+        - l {0} dir file
+        checkout:
+        - d {0} dir
+        - d {0} dir/subdir
+        - f {0} dir/file
+        """
+
+    @Test.parameterized([
+            (0o700, 0o700), (0o700, 0o740), (0o700, 0o744),
+            (0o700, 0o750), (0o700, 0o754), (0o700, 0o755),
+            (0o700, 0o760), (0o700, 0o764), (0o700, 0o766),
+            (0o700, 0o770), (0o700, 0o774), (0o700, 0o777),
+        ] if os.name != "nt" else [(0o777, 0o555), (0o555, 0o777)])
+    @runner
+    def test_type_change_link_to_dir(self):
+        """
+        Test that the type of a file or directory can be changed.
+        ---
+        tree:
+        - d {0} dir
+        - d {0} dir/subdir
+        - f {0} dir/file
+        checkout:
+        - f {0} file
+        - l {0} dir file
         """
 
     @Test.parameterized([
