@@ -13,19 +13,15 @@ class commit_ostream : public std::ostringstream {
   std::function<void(const std::string&)> _commit;
 
  public:
-  commit_ostream() = default;
+  commit_ostream();
 
-  virtual ~commit_ostream() {
-    if (_commit) {
-      _commit(str());
-    }
-  }
+  virtual ~commit_ostream();
 
   // Construct a commit_ostream from a
-  commit_ostream(std::function<void(const std::string&)> commit) : _commit(commit) {}
+  commit_ostream(std::function<void(const std::string&)> commit);
 
   // Move constructor
-  commit_ostream(commit_ostream&& other) : std::ostringstream(std::move(other)), _commit(std::move(other._commit)) {}
+  commit_ostream(commit_ostream&& other);
 };
 
 }  // namespace fstree

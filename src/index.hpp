@@ -1,7 +1,6 @@
 #pragma once
 #include "ignore.hpp"
 #include "inode.hpp"
-#include "sha1.hpp"
 
 #include <filesystem>
 #include <string>
@@ -16,33 +15,33 @@ class remote;
 
 class index {
   ignore_list _ignore;
-  std::vector<inode*> _inodes;
+  std::vector<inode::ptr> _inodes;
   std::filesystem::path _root_path;
-  inode _root;
+  inode::ptr _root;
 
  public:
   // Constructor
-  index() = default;
+  index();
 
-  explicit index(const std::filesystem::path& root) : _root_path(root) {}
+  explicit index(const std::filesystem::path& root);
 
-  explicit index(const std::filesystem::path& root, const ignore_list& ignore) : _ignore(ignore), _root_path(root) {}
+  explicit index(const std::filesystem::path& root, const ignore_list& ignore);
 
-  std::vector<inode*>::iterator begin() { return _inodes.begin(); }
+  ~index();
 
-  std::vector<inode*>::iterator end() { return _inodes.end(); }
+  void dump() const;
 
-  std::vector<inode*>::const_iterator begin() const { return _inodes.cbegin(); }
+  std::vector<inode::ptr>::iterator begin();
+  std::vector<inode::ptr>::iterator end();
+  std::vector<inode::ptr>::const_iterator begin() const;
+  std::vector<inode::ptr>::const_iterator end() const;
+  std::vector<inode::ptr>::size_type size() const;
 
-  std::vector<inode*>::const_iterator end() const { return _inodes.cend(); }
+  std::string root_path() const;
 
-  std::vector<inode*>::size_type size() const { return _inodes.size(); }
+  inode::ptr& root();
 
-  std::string root_path() const { return _root_path.string(); }
-
-  inode& root() { return _root; }
-
-  const inode& root() const { return _root; }
+  const inode::ptr& root() const;
 
   // Checks out the index to the given path
   void checkout(fstree::cache& cache, const std::filesystem::path& path);
@@ -60,7 +59,7 @@ class index {
   void load_ignore_from_index(fstree::cache& cache, const std::filesystem::path& path);
 
   // Adds an inode to the index
-  void push_back(inode* inode) { _inodes.push_back(inode); }
+  void push_back(inode::ptr inode);
 
   // Refreshes the index by scanning the filesystem
   void refresh();
@@ -72,8 +71,13 @@ class index {
   void sort();
 
  private:
-  void checkout_node(fstree::cache& c, inode* node, const std::filesystem::path& path);
-  inode* find_node_by_path(const std::filesystem::path& path);
+  void checkout_node(fstree::cache& c, inode::ptr node, const std::filesystem::path& path);
+
+  inode::ptr find_node_by_path(const std::filesystem::path& path);
+  
+  // Recursive refresh helper methods
+  void refresh_recursive(const inode::ptr& tree_node, const inode::ptr& index_node);
+
 };
 
 }  // namespace fstree

@@ -7,9 +7,10 @@ endif()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   set(CMAKE_CXX_FLAGS "/EHsc")
+  set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG")
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS_DEBUG "-g")
-  set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra -Werror -pedantic")
+  set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra -Werror -pedantic -DNDEBUG")
   set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 endif()
 
@@ -31,14 +32,20 @@ find_package(GTest CONFIG REQUIRED)
 ################################################################################
 
 set(SRCS
+    src/argparser.cpp
     src/cache.cpp
+    src/commit_ostream.cpp
+    src/directory_iterator.cpp
     src/event.cpp
+    src/ignore.cpp
     src/index.cpp
     src/inode.cpp
+    src/intrusive_ptr.cpp
     src/jolt.proto
     src/remote.cpp
     src/remote_jolt.cpp
     src/sha1.cpp
+    src/status.cpp
     src/thread.cpp
     src/thread_pool.cpp
 )
@@ -131,6 +138,7 @@ add_executable(
     fstree_test
     test/test_config.cpp
     test/test_ignore.cpp
+    test/test_iterator.cpp
     test/test_status.cpp
     test/test_url.cpp
 )

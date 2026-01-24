@@ -166,7 +166,7 @@ int cmd_fstree(const fstree::argparser& args) {
     rindex.checkout(cache, workspace);
     rindex.save(indexfile);
 
-    std::cout << rindex.root().hash() << std::endl;
+    std::cout << rindex.root()->hash() << std::endl;
     return EXIT_SUCCESS;
   }
   else if (args[0] == "evict") {
@@ -197,10 +197,10 @@ int cmd_fstree(const fstree::argparser& args) {
     std::string tree = args[1];
     if (tree.empty()) throw std::invalid_argument("missing tree argument");
 
-    fstree::inode root;
+    fstree::inode::ptr root = fstree::make_intrusive<fstree::inode>();
     cache.read_tree(tree, root);
 
-    for (const auto& inode : root) {
+    for (const auto& inode : *root) {
       if (inode->is_symlink())
         std::cout << std::setw(40) << inode->hash() << " " << inode->status().str() << " " << inode->path() << " -> "
                   << inode->target() << std::endl;
@@ -209,6 +209,7 @@ int cmd_fstree(const fstree::argparser& args) {
                   << std::endl;
     }
 
+    root->clear();
     return EXIT_SUCCESS;
   }
   else if (args[0] == "pull") {
@@ -229,7 +230,7 @@ int cmd_fstree(const fstree::argparser& args) {
       cache.evict();
     }
 
-    std::cout << index.root().hash() << std::endl;
+    std::cout << index.root()->hash() << std::endl;
     return EXIT_SUCCESS;
   }
   else if (args[0] == "pull-checkout") {
@@ -266,7 +267,7 @@ int cmd_fstree(const fstree::argparser& args) {
       cache.evict();
     }
 
-    std::cout << rindex.root().hash() << std::endl;
+    std::cout << rindex.root()->hash() << std::endl;
     return EXIT_SUCCESS;
   }
   else if (args[0] == "push") {
@@ -281,7 +282,7 @@ int cmd_fstree(const fstree::argparser& args) {
     cache.index_from_tree(tree, index);
     cache.push(index, *remote);
 
-    std::cout << index.root().hash() << std::endl;
+    std::cout << index.root()->hash() << std::endl;
     return EXIT_SUCCESS;
   }
   else if (args[0] == "write-tree") {
@@ -314,7 +315,7 @@ int cmd_fstree(const fstree::argparser& args) {
       cache.evict();
     }
 
-    std::cout << index.root().hash() << std::endl;
+    std::cout << index.root()->hash() << std::endl;
     return EXIT_SUCCESS;
   }
   else if (args[0] == "write-tree-push") {
@@ -348,7 +349,7 @@ int cmd_fstree(const fstree::argparser& args) {
       cache.evict();
     }
 
-    std::cout << index.root().hash() << std::endl;
+    std::cout << index.root()->hash() << std::endl;
     return EXIT_SUCCESS;
   }
   else {

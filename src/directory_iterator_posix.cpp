@@ -1,4 +1,6 @@
 #include "directory_iterator.hpp"
+#include "thread_pool.hpp"
+#include "wait_group.hpp"
 
 #include <cstring>
 
@@ -9,8 +11,25 @@
 
 namespace fstree {
 
+// Iterator methods
+std::vector<inode::ptr>::iterator sorted_directory_iterator::begin() { 
+  return _inodes.begin(); 
+}
+
+std::vector<inode::ptr>::iterator sorted_directory_iterator::end() { 
+  return _inodes.end();
+}
+
+inode::ptr& sorted_directory_iterator::root() { 
+  return _root; 
+}
+
+const inode::ptr& sorted_directory_iterator::root() const { 
+  return _root; 
+}
+
 void sorted_directory_iterator::read_directory(
-    const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent, const ignore_list& ignores) {
+    const std::filesystem::path& abs, const std::filesystem::path& rel, inode::ptr& parent, const ignore_list& ignores) {
   // Open the directory
   DIR* dir = opendir(abs.c_str());
   if (dir == nullptr) {
@@ -76,7 +95,7 @@ void sorted_directory_iterator::read_directory(
     file_status status(status_bits);
 
     // Add the path to the list of inodes
-    inode* node = new inode(relpath.string(), status, mtime, st.st_size, target);
+    inode::ptr node = fstree::make_intrusive<inode>(relpath.string(), status, mtime, st.st_size, target);
     {
       std::lock_guard<std::mutex> lock(_mutex);
       _inodes.push_back(node);
@@ -88,7 +107,8 @@ void sorted_directory_iterator::read_directory(
       wg.add(1);
       _pool->enqueue_or_run([this, abspath, relpath, node, &wg] {
         try {
-          read_directory(abspath, relpath, node, _ignores);
+          inode::ptr node_c = intrusive_ptr<inode>(node); 
+          read_directory(abspath, relpath, node_c, _ignores);
           wg.done();
         }
         catch (const std::exception& e) {

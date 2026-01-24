@@ -15,6 +15,9 @@
 
 namespace py = pybind11;
 
+// Tell pybind11 about our intrusive_ptr
+PYBIND11_DECLARE_HOLDER_TYPE(T, fstree::intrusive_ptr<T>);
+
 PYBIND11_MODULE(fstree, m) {
     m.doc() = "Python bindings for fstree - filesystem tree sharing and sync";
     
@@ -45,9 +48,8 @@ PYBIND11_MODULE(fstree, m) {
         .def("matches", &fstree::ignore_list::match);
 
 
-    // Expose the inode class
-    py::class_<fstree::inode>(m, "Inode")
-        .def(py::init<>())
+    // Expose the inode class using smart pointers
+    py::class_<fstree::inode, fstree::intrusive_ptr<fstree::inode>>(m, "Inode")
         .def_property_readonly("name", &fstree::inode::name)
         .def_property_readonly("path", &fstree::inode::path)
         .def_property_readonly("size", &fstree::inode::size)
@@ -73,10 +75,16 @@ PYBIND11_MODULE(fstree, m) {
             // Return modification time as datetime object
             return std::chrono::system_clock::time_point(std::chrono::nanoseconds(inode.last_write_time()));
         })
-        .def_property_readonly("symlink_target", &fstree::inode::target);
+        .def_property_readonly("symlink_target", &fstree::inode::target)
+        .def("__iter__", [](fstree::inode &node) {
+            return py::make_iterator(node.begin(), node.end());
+        }, py::keep_alive<0, 1>());
     
     // Expose the index class
     py::class_<fstree::index>(m, "Index")
+        .def(py::init([]() {
+            return std::make_unique<fstree::index>();
+        }))
         .def(py::init([](const std::string& path) {
             return std::make_unique<fstree::index>(std::filesystem::path(path));
         }))
@@ -93,8 +101,8 @@ PYBIND11_MODULE(fstree, m) {
             idx.load(std::filesystem::path(file));
         })
         .def("refresh", &fstree::index::refresh)
-        .def_property_readonly("root", [](fstree::index &idx) {
-            return std::make_unique<fstree::inode>(idx.root());
+        .def_property_readonly("root", [](fstree::index &idx) -> fstree::intrusive_ptr<fstree::inode> {
+            return idx.root();
         })
         .def("save", [](fstree::index &idx) {
             idx.save(std::filesystem::path(".fstree/index"));

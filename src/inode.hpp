@@ -1,9 +1,8 @@
 #pragma once
 
-#include "sha1.hpp"
+#include "intrusive_ptr.hpp"
 #include "status.hpp"
 
-#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <string>
@@ -13,12 +12,13 @@ namespace fs = std::filesystem;
 
 namespace fstree {
 
-class inode {
+class inode : public intrusive_ptr_base<inode> {
  public:
   using time_type = std::chrono::time_point<std::chrono::nanoseconds>::rep;
+  using ptr = intrusive_ptr<inode>;
 
   // Constructor
-  inode() : _status(file_status(std::filesystem::file_type::directory, std::filesystem::perms::none)) {}
+  inode();
 
   // Constructor
   inode(
@@ -27,103 +27,89 @@ class inode {
       time_type mtime,
       size_t size,
       const std::string& target,
-      const std::string& hash = "")
-      : _path(path), _hash(hash), _status(status), _last_write_time(mtime), _size(size), _target(target) {}
+      const std::string& hash = "");
 
-  void add_child(inode* child) {
-    _children.push_back(child);
-    child->set_parent(this);
-  }
+  void add_child(inode::ptr& child);
 
   // Iterator begin
-  std::vector<inode*>::iterator begin() { return _children.begin(); }
+  std::vector<inode::ptr>::iterator begin();
 
   // Iterator end
-  std::vector<inode*>::iterator end() { return _children.end(); }
+  std::vector<inode::ptr>::iterator end();
 
   // Const iterator begin
-  std::vector<inode*>::const_iterator begin() const { return _children.begin(); }
+  std::vector<inode::ptr>::const_iterator begin() const;
 
   // Const iterator end
-  std::vector<inode*>::const_iterator end() const { return _children.end(); }
+  std::vector<inode::ptr>::const_iterator end() const;
 
   // Returns true if this inode is a directory
-  bool is_directory() const { return _status.is_directory(); }
+  bool is_directory() const;
 
   // Returns true if this inode is a regular file
-  bool is_file() const { return _status.is_regular(); }
+  bool is_file() const;
 
   // Returns true if this inode is a symlink
-  bool is_symlink() const { return _status.is_symlink(); }
+  bool is_symlink() const;
 
   // Returns the sha1 hash of the file
-  const std::string& hash() const { return _hash; }
+  const std::string& hash() const;
 
   // Sets the sha1 hash of the file
-  void set_hash(const std::string& hash) { _hash = hash; }
+  void set_hash(const std::string& hash);
 
   // Return the file status, which includes the type and permissions
-  file_status status() const { return _status; }
+  file_status status() const;
 
   // Set the file status, which includes the type and permissions
-  void set_status(file_status status) { _status = status; }
+  void set_status(file_status status);
 
   // Return the size of the file
-  size_t size() const { return _size; }
+  size_t size() const;
 
   // Return the inode type
-  std::filesystem::file_type type() const { return _status.type(); }
+  std::filesystem::file_type type() const;
 
   // Return the inode permissions
-  std::filesystem::perms permissions() const { return _status.permissions(); }
+  std::filesystem::perms permissions() const;
 
   // Return the last modification time
-  time_type last_write_time() const { return _last_write_time; }
+  time_type last_write_time() const;
 
-  void set_last_write_time(time_type last_write_time) { _last_write_time = last_write_time; }
+  void set_last_write_time(time_type last_write_time);
 
-  const std::string& target() const { return _target; }
+  const std::string& target() const;
 
-  std::filesystem::path target_path() const { return std::filesystem::path(_target).make_preferred(); }
+  std::filesystem::path target_path() const;
 
-  const std::string& path() const { return _path; }
+  const std::string& path() const;
 
-  std::string name() const { return std::filesystem::path(_path).filename().string(); }
+  std::string name() const;
 
-  void set_parent(inode* parent) { _parent = parent; }
+  const inode::ptr& parent() const;
 
-  void set_dirty() {
-    _hash.clear();
-    if (_parent && !_parent->is_dirty()) {
-      _parent->set_dirty();
-    }
-  }
+  void set_parent(const inode::ptr& parent);
 
-  void sort() {
-    std::sort(_children.begin(), _children.end(), [](const inode* a, const inode* b) { return a->path() < b->path(); });
-  }
+  void set_dirty();
 
-  bool is_dirty() const { return _hash.empty(); }
+  void sort();
 
-  void rehash(const std::filesystem::path& root) { _hash = sha1_hex_file(root / _path); }
+  bool is_dirty() const;
+
+  bool is_equivalent(const inode::ptr& other) const;
+
+  void rehash(const std::filesystem::path& root);
 
   // equality operator
-  bool operator==(const inode& other) const {
-    return _path == other._path && _status.type() == other._status.type() &&
-           _status.permissions() == other._status.permissions() && _last_write_time == other._last_write_time &&
-           _target == other._target;
-  }
+  bool operator==(const inode& other) const;
 
-  void ignore() { _ignored = true; }
-  bool is_ignored() const { return _ignored; }
+  void ignore();
+  bool is_ignored() const;
 
-  void unignore() {
-    if (!_unignored) {
-      _unignored = true;
-      if (_parent) _parent->unignore();
-    }
-  }
-  bool is_unignored() const { return _unignored; }
+  void unignore();
+  bool is_unignored() const;
+
+  void clear();
 
  private:
   // The name of the file
@@ -145,10 +131,10 @@ class inode {
   std::string _target;
 
   // Children inodes if this is a directory
-  std::vector<inode*> _children;
+  std::vector<inode::ptr> _children;
 
   // The parent inode if this is a child inode
-  inode* _parent = nullptr;
+  inode::ptr _parent = nullptr;
 
   // If the inode was ignored
   bool _ignored = false;

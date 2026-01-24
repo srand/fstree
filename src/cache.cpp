@@ -4,6 +4,7 @@
 #include "event.hpp"
 #include "filesystem.hpp"
 #include "inode.hpp"
+#include "sha1.hpp"
 #include "thread.hpp"
 #include "thread_pool.hpp"
 #include "wait_group.hpp"
@@ -47,7 +48,7 @@ void cache::add(fstree::index& index) {
   wait_group wg;
 
   // List of dirty directory inodes
-  std::vector<inode*> dirty_dirs;
+  std::vector<inode::ptr> dirty_dirs;
 
   for (const auto& inode : index) {
     if (inode->is_file()) {
@@ -107,19 +108,19 @@ void cache::add(fstree::index& index) {
     create_dirtree(*it);
   }
 
-  create_dirtree(&index.root());
+  create_dirtree(index.root());
 }
 
-void cache::read_tree(const std::string& hash, inode& inode) {
+void cache::read_tree(const std::string& hash, inode::ptr& inode) {
   std::error_code ec;
 
 #ifdef _WIN32
   auto lock = _lock.lock();
 #endif
 
-  inode.set_hash(hash);
+  inode->set_hash(hash);
 
-  std::filesystem::path object = tree_path(&inode);
+  std::filesystem::path object = tree_path(inode);
   if (!std::filesystem::exists(object, ec)) {
     throw std::runtime_error("tree object not found in local cache: " + hash);
   }
@@ -129,31 +130,31 @@ void cache::read_tree(const std::string& hash, inode& inode) {
     throw std::runtime_error("failed to open tree object: " + object.string() + ": " + ec.message());
   }
 
-  file >> inode;
+  file >> *inode;
 }
 
 void cache::index_from_tree(const std::string& hash, fstree::index& index) {
-  std::vector<inode*> trees;
+  std::vector<inode::ptr> trees;
   pool& pool = get_pool();
   std::mutex mutex;
   wait_group wg;
 
   // Add root directory
-  index.root().set_hash(hash);
-  index.root().set_status(fstree::file_status(fs::file_type::directory, fs::perms::none));
-  trees.push_back(&index.root());
+  index.root()->set_hash(hash);
+  index.root()->set_status(fstree::file_status(fs::file_type::directory, fs::perms::none));
+  trees.push_back(index.root());
 
   // Check if trees are present locally, otherwise pull the tree from the remote.
   // Pull all objects in parallel.
   while (!trees.empty()) {
-    std::vector<inode*> new_trees;
+    std::vector<inode::ptr> new_trees;
 
     // Pull all discovered trees in parallel
     for (auto& tree : trees) {
       wg.add(1);
-      pool.enqueue([this, &index, &mutex, &wg, tree, &new_trees]() {
+      pool.enqueue([this, &index, &mutex, &wg, &tree, &new_trees]() {
         try {
-          read_tree(tree->hash(), *tree);
+          read_tree(tree->hash(), tree);
 
           for (auto& inode : *tree) {
             std::lock_guard<std::mutex> lock(mutex);
@@ -179,7 +180,7 @@ void cache::index_from_tree(const std::string& hash, fstree::index& index) {
   }
 }
 
-void cache::create_file(const std::filesystem::path& root, const inode* inode) {
+void cache::create_file(const std::filesystem::path& root, const inode::ptr& inode) {
   std::error_code ec;
 
   std::filesystem::path object_path = file_path(inode);
@@ -203,7 +204,7 @@ void cache::create_file(const std::filesystem::path& root, const inode* inode) {
   }
 }
 
-void cache::create_dirtree(inode* node) {
+void cache::create_dirtree(inode::ptr& node) {
   std::error_code ec;
 
   node->sort();
@@ -261,13 +262,13 @@ std::filesystem::path cache::file_path(const std::string& hash) {
   return _objectdir / hash.substr(0, 2) / (hash.substr(2) + ".file");
 }
 
-std::filesystem::path cache::file_path(const inode* inode) { return file_path(inode->hash()); }
+std::filesystem::path cache::file_path(const inode::ptr& inode) { return file_path(inode->hash()); }
 
 std::filesystem::path cache::tree_path(const std::string& hash) {
   return _objectdir / hash.substr(0, 2) / (hash.substr(2) + ".tree");
 }
 
-std::filesystem::path cache::tree_path(const inode* inode) { return tree_path(inode->hash()); }
+std::filesystem::path cache::tree_path(const inode::ptr& inode) { return tree_path(inode->hash()); }
 
 void cache::pull_object(fstree::remote& remote, const std::string& hash) {
 #ifdef _WIN32
@@ -328,7 +329,7 @@ void cache::push_tree(fstree::remote& remote, const std::string& hash) {
 }
 
 void cache::push(const fstree::index& index, fstree::remote& remote) {
-  event("cache::push", index.root().hash(), index.size());
+  event("cache::push", index.root()->hash(), index.size());
 
   pool& pool = get_pool();
   wait_group wg;
@@ -340,7 +341,7 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
   std::mutex check_trees_mutex;
 
   // First add the root tree to be checked
-  check_trees.push_back(index.root().hash());
+  check_trees.push_back(index.root()->hash());
 
   do {
     // Lists of missing child trees and objects for the checked tree
@@ -412,12 +413,12 @@ void cache::pull(fstree::index& index, fstree::remote& remote, const std::string
   wait_group wg;
 
   // List of missing objects
-  std::vector<inode*> trees;
+  std::vector<inode::ptr> trees;
 
   // Add root directory
-  index.root().set_hash(tree_hash);
-  index.root().set_status(fstree::file_status(fs::file_type::directory, fs::perms::none));
-  trees.push_back(&index.root());
+  index.root()->set_hash(tree_hash);
+  index.root()->set_status(fstree::file_status(fs::file_type::directory, fs::perms::none));
+  trees.push_back(index.root());
 
   // Check if trees are present locally, otherwise pull the tree from the remote.
   // Pull all objects in parallel.
@@ -428,7 +429,7 @@ void cache::pull(fstree::index& index, fstree::remote& remote, const std::string
       pool.enqueue([this, &wg, &remote, &tree]() {
         try {
           pull_tree(remote, tree->hash());
-          read_tree(tree->hash(), *tree);
+          read_tree(tree->hash(), tree);
           wg.done();
         }
         catch (const std::exception& e) {
@@ -442,7 +443,7 @@ void cache::pull(fstree::index& index, fstree::remote& remote, const std::string
 
     // Pull all objects in parallel, add trees to list of trees to pull
     std::mutex mutex;
-    std::vector<inode*> new_trees;
+    std::vector<inode::ptr> new_trees;
     for (auto& tree : trees) {
       wg.add(1);
       pool.enqueue([this, &index, &wg, &remote, tree, &new_trees, &pool, &mutex]() {
@@ -505,7 +506,7 @@ void cache::evict() {
 }
 
 void cache::evict_subdir(const std::filesystem::path& dir) {
-  const auto sort_by_mtime = [](inode* a, inode* b) { return a->last_write_time() < b->last_write_time(); };
+  const auto sort_by_mtime = [](const inode::ptr& a, const inode::ptr& b) { return a->last_write_time() < b->last_write_time(); };
   sorted_directory_iterator objects(dir, ignore_list(), sort_by_mtime, false);
 
   // Summarize the size of all objects in the directory

@@ -2,27 +2,28 @@
 
 #include "ignore.hpp"
 #include "inode.hpp"
-#include "thread.hpp"
-#include "thread_pool.hpp"
-#include "wait_group.hpp"
 
 #include <filesystem>
+#include <functional>
+#include <mutex>
 #include <vector>
 
 namespace fstree {
+
+class pool;
 
 // Recursive directory iterator
 // Reads the directory recursively and sorts the inodes by path
 class sorted_directory_iterator {
  public:
-  using compare_function = std::function<bool(inode*, inode*)>;
+  using compare_function = std::function<bool(const inode::ptr&, const inode::ptr&)>;
 
  private:
-  inode _root;
+  inode::ptr _root;
   pool* _pool;
   ignore_list _ignores;
   std::mutex _mutex;
-  std::vector<inode*> _inodes;
+  std::vector<inode::ptr> _inodes;
 
   // Decend into subdirectories
   bool _recursive = true;
@@ -34,49 +35,24 @@ class sorted_directory_iterator {
   sorted_directory_iterator() = default;
 
   explicit sorted_directory_iterator(
-      const std::filesystem::path& path, const ignore_list& ignores, bool recursive = true)
-      : sorted_directory_iterator(path, ignores, [](inode* a, inode* b) { return a->path() < b->path(); }, recursive) {}
+      const std::filesystem::path& path, const ignore_list& ignores, bool recursive = true);
 
   explicit sorted_directory_iterator(
-      const std::filesystem::path& path, const ignore_list& ignores, compare_function compare, bool recursive = true)
-      : _pool(&get_pool()), _ignores(ignores), _recursive(recursive), _compare(compare) {
-    // Read the root directory and maybe recursively read the subdirectories
-    read_directory(path, "", &_root, ignores);
+      const std::filesystem::path& path, const ignore_list& ignores, compare_function compare, bool recursive = true);
 
-    // Sort the inodes by path
-    std::sort(_inodes.begin(), _inodes.end(), _compare);
-
-    // Filter out ignored files and directories from the list in reverse order.
-    for (auto it = _inodes.rbegin(); it != _inodes.rend(); ++it) {
-      // Checking directories already in the read_directory function
-      if ((*it)->is_directory()) {
-        continue;
-      }
-
-      if (!(*it)->is_unignored() && _ignores.match((*it)->path())) {
-        (*it)->ignore();
-      }
-      else {
-        (*it)->unignore();
-      }
-    }
-
-    // Remove all ignored files and directories
-    _inodes.erase(
-        std::remove_if(_inodes.begin(), _inodes.end(), [](inode* inode) { return inode->is_ignored(); }),
-        _inodes.end());
-  }
+  ~sorted_directory_iterator();
 
   // begin and end functions
-  std::vector<inode*>::iterator begin() { return _inodes.begin(); }
-  std::vector<inode*>::iterator end() { return _inodes.end(); }
+  std::vector<inode::ptr>::iterator begin();
+  std::vector<inode::ptr>::iterator end();
 
   // Root inode
-  inode& root() { return _root; }
+  inode::ptr& root();
+  const inode::ptr& root() const;
 
  private:
   void read_directory(
-      const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent, const ignore_list& ignores);
+      const std::filesystem::path& abs, const std::filesystem::path& rel, inode::ptr& parent, const ignore_list& ignores);
 };
 
 }  // namespace fstree

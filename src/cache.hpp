@@ -28,7 +28,7 @@ class cache {
   explicit cache(const std::filesystem::path& path, size_t max_size, std::chrono::seconds retention_period);
 
   // Retrieves the tree with the given hash from the cache.
-  void read_tree(const std::string& hash, inode& inode);
+  void read_tree(const std::string& hash, inode::ptr& inode);
 
   // Creates a new index from the tree with the given hash.
   // The tree is traversed recursively.
@@ -71,12 +71,12 @@ class cache {
   // Evict objects from the cache until the size is below the maximum size.
   void evict();
 
-  std::filesystem::path file_path(const inode* inode);
-  std::filesystem::path tree_path(const inode* inode);
+  std::filesystem::path file_path(const inode::ptr& inode);
+  std::filesystem::path tree_path(const inode::ptr& inode);
 
  private:
-  void create_dirtree(inode* node);
-  void create_file(const std::filesystem::path& root, const inode* inode);
+  void create_dirtree(inode::ptr& node);
+  void create_file(const std::filesystem::path& root, const inode::ptr& inode);
   void evict_subdir(const std::filesystem::path& dir);
 
   std::filesystem::path file_path(const std::string& hash);

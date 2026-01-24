@@ -14,8 +14,8 @@ class lock_file {
  public:
   class context {
    public:
-    context(lock_file& lock) : _lock(lock) {}
-    ~context() { _lock.unlock(); }
+    context(lock_file& lock);
+    ~context();
 
    private:
     lock_file& _lock;

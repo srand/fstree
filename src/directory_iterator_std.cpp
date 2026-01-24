@@ -1,15 +1,32 @@
 #include "directory_iterator.hpp"
-
-#include <iostream>
-
-#include <Windows.h>
+#include "thread_pool.hpp"
+#include "wait_group.hpp"
 
 namespace fs = std::filesystem;
 
 namespace fstree {
 
+// Iterator methods
+std::vector<inode::ptr>::iterator sorted_directory_iterator::begin() { 
+  return _inodes.begin(); 
+}
+
+std::vector<inode::ptr>::iterator sorted_directory_iterator::end() { 
+  return _inodes.end(); 
+}
+
+inode::ptr& sorted_directory_iterator::root() { 
+  return _root; 
+}
+
+const inode::ptr& sorted_directory_iterator::root() const {
+  return _root;
+}
+
 void sorted_directory_iterator::read_directory(
-    const std::filesystem::path& abs, const std::filesystem::path& rel, inode* parent, std::error_code& ec) {
+      const std::filesystem::path& abs, const std::filesystem::path& rel, inode::ptr& parent, const ignore_list& ignores) 
+{
+  std::error_code ec;
   fstree::wait_group wg;
   fs::directory_iterator it(abs, ec);
 
@@ -22,21 +39,6 @@ void sorted_directory_iterator::read_directory(
     if (name == "." || name == ".." || name == ".fstree") {
       continue;
     }
-
-    // Get inode number using GetFileInformationByHandle
-    inode::ino_type ino = 0;
-
-    // BY_HANDLE_FILE_INFORMATION info;
-    //
-    // if (!GetFileInformationByHandle(handle, &info)) {
-    //  error = GetLastError();
-    //  ec = std::error_code(error, std::system_category());
-    //  break;
-    //}
-    //
-    // ino = info.nFileIndexHigh;
-    // ino <<= 32;
-    // ino |= info.nFileIndexLow;
 
     // Get file status
     fs::file_status status = entry.status(ec);
@@ -69,19 +71,20 @@ void sorted_directory_iterator::read_directory(
       }
     }
 
-    inode* child = new inode(path.string(), ino, file_status(type, perms), mtime, size, target.string());
+    inode::ptr node = fstree::make_intrusive<inode>(path.string(), file_status(type, perms), mtime, size, target.string());
     {
       std::lock_guard<std::mutex> lock(_mutex);
-      _inodes.push_back(child);
-      parent->add_child(child);
+      _inodes.push_back(node);
+      parent->add_child(node);
     }
 
     // Recurse if it's a directory
     if (_recursive && type == fs::file_type::directory) {
       wg.add(1);
-      _pool.enqueue_or_run([this, abs, name, path, child, &wg] {
+      _pool->enqueue_or_run([this, abs, name, path, node, &wg] {
         try {
-          read_directory(abs / name, path, child);
+          inode::ptr node_c = intrusive_ptr<inode>(node);
+          read_directory(abs / name, path, node_c, _ignores);
           wg.done();
         }
         catch (const std::exception& e) {

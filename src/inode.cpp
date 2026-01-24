@@ -1,11 +1,135 @@
 #include "inode.hpp"
+#include "sha1.hpp"
 
+#include <algorithm>
 #include <cstring>
 
 namespace fstree {
 
 static const uint16_t g_magic = 0x3eee;
 static const uint16_t g_version = 1;
+
+// Constructor implementations
+inode::inode() : _status(file_status(std::filesystem::file_type::directory, std::filesystem::perms::none)) {}
+
+inode::inode(
+    const std::string& path,
+    file_status status,
+    time_type mtime,
+    size_t size,
+    const std::string& target,
+    const std::string& hash)
+    : _path(path), _hash(hash), _status(status), _last_write_time(mtime), _size(size), _target(target) {}
+
+void inode::add_child(inode::ptr& child) {
+  _children.push_back(child);
+  child->set_parent(intrusive_from_this());
+}
+
+// Iterator implementations
+std::vector<inode::ptr>::iterator inode::begin() { return _children.begin(); }
+
+std::vector<inode::ptr>::iterator inode::end() { return _children.end(); }
+
+std::vector<inode::ptr>::const_iterator inode::begin() const { return _children.begin(); }
+
+std::vector<inode::ptr>::const_iterator inode::end() const { return _children.end(); }
+
+// Type checking methods
+bool inode::is_directory() const { return _status.is_directory(); }
+
+bool inode::is_file() const { return _status.is_regular(); }
+
+bool inode::is_symlink() const { return _status.is_symlink(); }
+
+// Hash methods
+const std::string& inode::hash() const { return _hash; }
+
+void inode::set_hash(const std::string& hash) { _hash = hash; }
+
+// Status methods
+file_status inode::status() const { return _status; }
+
+void inode::set_status(file_status status) { _status = status; }
+
+// Size method
+size_t inode::size() const { return _size; }
+
+// Type and permissions
+std::filesystem::file_type inode::type() const { return _status.type(); }
+
+std::filesystem::perms inode::permissions() const { return _status.permissions(); }
+
+// Time methods
+inode::time_type inode::last_write_time() const { return _last_write_time; }
+
+void inode::set_last_write_time(time_type last_write_time) { _last_write_time = last_write_time; }
+
+// Target methods
+const std::string& inode::target() const { return _target; }
+
+std::filesystem::path inode::target_path() const { return std::filesystem::path(_target).make_preferred(); }
+
+// Path methods
+const std::string& inode::path() const { return _path; }
+
+std::string inode::name() const { return std::filesystem::path(_path).filename().string(); }
+
+const inode::ptr& inode::parent() const { return _parent; }
+
+void inode::set_parent(const inode::ptr& parent) { _parent = parent; }
+
+void inode::set_dirty() {
+  _hash.clear();
+  if (_parent && !_parent->is_dirty()) {
+    _parent->set_dirty();
+  }
+}
+
+void inode::sort() {
+  std::sort(_children.begin(), _children.end(), [](const inode::ptr& a, const inode::ptr& b) { return a->path() < b->path(); });
+}
+
+bool inode::is_dirty() const { return _hash.empty(); }
+
+bool inode::is_equivalent(const inode::ptr& other) const {
+  return _path == other->_path && _status.type() == other->_status.type() &&
+         _status.permissions() == other->_status.permissions() && _last_write_time == other->_last_write_time &&
+         _target == other->_target;
+}
+
+// Equality operator
+bool inode::operator==(const inode& other) const {
+  return _path == other._path && _status.type() == other._status.type() &&
+         _status.permissions() == other._status.permissions() && _last_write_time == other._last_write_time &&
+         _target == other._target;
+}
+
+// Ignore methods
+void inode::ignore() { _ignored = true; }
+
+bool inode::is_ignored() const { return _ignored; }
+
+void inode::unignore() {
+  if (!_unignored) {
+    _unignored = true;
+    if (_parent) _parent->unignore();
+  }
+}
+
+bool inode::is_unignored() const { return _unignored; }
+
+void inode::rehash(const std::filesystem::path& root) { 
+  _hash = sha1_hex_file(root / _path); 
+}
+
+void inode::clear() {
+  std::for_each(_children.begin(), _children.end(), [](inode::ptr& child) {
+    child->clear();
+  });
+  _children.clear();
+  _parent.reset();
+}
 
 std::ostream& operator<<(std::ostream& os, const inode& inode) {
   // write magic and version
@@ -120,7 +244,9 @@ std::istream& operator>>(std::istream& is, inode& inode) {
 
     std::filesystem::path inode_path = inode.path();
     inode_path /= path;
-    inode.add_child(new fstree::inode(inode_path.string(), status, inode::time_type(0), 0ul, target, hash));
+    auto child = fstree::make_intrusive<fstree::inode>(
+      inode_path.string(), status, inode::time_type(0), 0ul, target, hash);
+    inode.add_child(child);
   }
 
   return is;

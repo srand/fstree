@@ -1,4 +1,4 @@
-from jolt import Alias, Task, Test
+from jolt import Alias, BooleanParameter, Task, Test
 from jolt.plugins import cmake
 from jolt.plugins import git
 from jolt.plugins import python
@@ -24,6 +24,8 @@ class GoogleTest(googletest.GoogleTest):
 @git.influence("test")
 class Fstree(cmake.CMake):
     incremental = True
+    debug = BooleanParameter(False, "Build with debug info")
+    config = "{debug[Debug,Release]}"
     requires = ["google/test", "grpc"]
 
 

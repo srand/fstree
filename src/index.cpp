@@ -1,4 +1,3 @@
-
 #include "index.hpp"
 
 #include "cache.hpp"
@@ -6,21 +5,72 @@
 #include "event.hpp"
 #include "filesystem.hpp"
 #include "inode.hpp"
-#include "sha1.hpp"
-#include "wait_group.hpp"
 
 #include <algorithm>
 #include <cstring>
 #include <fstream>
-#include <future>
 #include <iostream>
-#include <thread>
 #include <vector>
 
 namespace fstree {
 
 static const uint16_t magic = 0x3ee3;
 static const uint16_t version = 1;
+
+// Constructor implementations
+index::index() 
+  : _root(fstree::make_intrusive<fstree::inode>()) 
+{}
+
+index::index(const std::filesystem::path& root) 
+  : _root_path(root), _root(fstree::make_intrusive<fstree::inode>())
+{}
+
+index::index(const std::filesystem::path& root, const ignore_list& ignore) 
+  : _ignore(ignore)
+  , _root_path(root)
+  , _root(fstree::make_intrusive<fstree::inode>()) 
+{}
+
+index::~index() {
+  if (_root) {
+    _root->clear();
+  }
+  std::for_each(_inodes.begin(), _inodes.end(), [](inode::ptr& inode) {
+    inode->clear();
+  });
+}
+
+void index::dump() const {
+  for (const auto& inode : _inodes) {
+    std::cerr << std::setw(40) << inode->hash() << " " << inode->path() << std::endl;
+    if (inode->is_directory()) {
+      for (const auto& child : *inode) {
+        std::cerr << "  " << std::setw(40) << child->hash() << " " << child->path() << std::endl;
+      }
+    }
+  }
+  std::cerr << std::endl;
+}
+
+// Iterator methods
+std::vector<inode::ptr>::iterator index::begin() { return _inodes.begin(); }
+
+std::vector<inode::ptr>::iterator index::end() { return _inodes.end(); }
+
+std::vector<inode::ptr>::const_iterator index::begin() const { return _inodes.cbegin(); }
+
+std::vector<inode::ptr>::const_iterator index::end() const { return _inodes.cend(); }
+
+std::vector<inode::ptr>::size_type index::size() const { return _inodes.size(); }
+
+std::string index::root_path() const { return _root_path.string(); }
+
+inode::ptr& index::root() { return _root; }
+
+const inode::ptr& index::root() const { return _root; }
+
+void index::push_back(inode::ptr inode) { _inodes.push_back(inode); }
 
 // Serializes the index to a file using run length encoding
 void index::save(const std::filesystem::path& indexfile) const {
@@ -136,7 +186,7 @@ void index::load(const std::filesystem::path& indexfile) {
       if (!file) throw std::runtime_error("failed reading index: " + index_path.string() + ": " + std::strerror(errno));
     }
 
-    push_back(new fstree::inode(path, status, mtime, 0, target, hash));
+    push_back(fstree::make_intrusive<fstree::inode>(path, status, mtime, 0, target, hash));
   }
 }
 
@@ -319,7 +369,7 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
   }
 }
 
-void index::checkout_node(fstree::cache& c, inode* node, const std::filesystem::path& path) {
+void index::checkout_node(fstree::cache& c, inode::ptr node, const std::filesystem::path& path) {
   std::filesystem::path full_path = path / node->path();
   std::error_code ec;
 
@@ -371,8 +421,8 @@ void index::checkout_node(fstree::cache& c, inode* node, const std::filesystem::
   node->set_status(st.status);
 }
 
-inode* index::find_node_by_path(const std::filesystem::path& path) {
-  auto it = std::lower_bound(_inodes.begin(), _inodes.end(), path.string(), [](const inode* a, const std::string& b) {
+inode::ptr index::find_node_by_path(const std::filesystem::path& path) {
+  auto it = std::lower_bound(_inodes.begin(), _inodes.end(), path.string(), [](const inode::ptr& a, const std::string& b) {
     return a->path() < b;
   });
   if (it != _inodes.end() && (*it)->path() == path) {
@@ -382,7 +432,7 @@ inode* index::find_node_by_path(const std::filesystem::path& path) {
 }
 
 void index::load_ignore_from_index(fstree::cache& cache, const std::filesystem::path& path) {
-  fstree::inode* ignore_node = find_node_by_path(path);
+  fstree::inode::ptr ignore_node = find_node_by_path(path);
   if (ignore_node && ignore_node->is_file()) {
     auto ignore_path = cache.file_path(ignore_node);
     _ignore.load(ignore_path.string());
@@ -392,93 +442,66 @@ void index::load_ignore_from_index(fstree::cache& cache, const std::filesystem::
 void index::refresh() {
   event("index::refresh", _root_path.string());
 
+  // Our goal is to scan the filesystem tree and replace the index with it,
+  // However, we want to preserve hashes from the index where possible to avoid
+  // re-hashing unchanged files.
+
+  // Note that the index tree may be incomplete and lacks parent/child 
+  // relationships. We can only rely on the list of inodes in the index.
+
+  // Scan the filesystem tree
   sorted_directory_iterator tree(_root_path, _ignore);
 
-  auto cur_tree_node = tree.begin();
-  auto cur_index_node = _inodes.begin();
-  auto end_tree_node = tree.end();
-  auto end_index_node = _inodes.end();
+  // Copy index a temporary vector and clear the index
+  std::vector<inode::ptr> nodes(std::move(_inodes));
 
-  index new_index;
-  std::vector<inode*> rehash_inodes;
+  auto tree_it = tree.begin();
+  auto tree_end = tree.end();
+  auto index_it = nodes.begin();
+  auto index_end = nodes.end();
 
-  for (;;) {
-    // Reached the end of the tree. All remaining index nodes are removed.
-    if (cur_tree_node == end_tree_node) {
+  // Iterate through the filesystem tree and the index in parallel
+  // looking for matching paths.
+
+  while (tree_it != tree_end || index_it != index_end) {
+    if (tree_it == tree_end) {
+      // No more tree nodes - done
       break;
     }
-
-    // Reached the end of the index. All remaining tree nodes are added.
-    if (cur_index_node == end_index_node) {
-      std::for_each(cur_tree_node, end_tree_node, [&](auto& inode) {
-        inode->set_dirty();
-        new_index.push_back(inode);
-      });
+    else if (index_it == index_end) {
+      // No more index nodes - add remaining tree nodes
+      for (; tree_it != tree_end; ++tree_it) {
+        _inodes.push_back(*tree_it);
+      }
       break;
     }
-
-    // Compare the current nodes
-
-    // If the tree node is less than the index node, it's added
-    if ((*cur_tree_node)->path() < (*cur_index_node)->path()) {
-      (*cur_tree_node)->set_dirty();
-      new_index.push_back(*cur_tree_node);
-      cur_tree_node++;
-      continue;
+    else if ((*tree_it)->path() < (*index_it)->path()) {
+      // Tree node is new - add it
+      _inodes.push_back(*tree_it);
+      ++tree_it;
     }
-
-    // If the tree node is greater than the index node, it's removed
-    if ((*cur_tree_node)->path() > (*cur_index_node)->path()) {
-      cur_index_node++;
-      continue;
+    else if ((*tree_it)->path() > (*index_it)->path()) {
+      // Index node was deleted - ignore it
+      ++index_it;
     }
+    else {
+      // Matching paths - keep the tree node
+      _inodes.push_back(*tree_it);
 
-    // If the tree node is equal to the index node, it's maybe modified
-    if ((*cur_tree_node)->path() == (*cur_index_node)->path()) {
-      // Compare inode type
-      if ((*cur_tree_node)->type() != (*cur_index_node)->type()) {
-        if ((*cur_index_node)->is_directory()) {
-          // If the index node is a directory but the tree node is not,
-          // all children of the directory must be skipped
-          std::string dir_path = (*cur_index_node)->path() + "/";
-          while (cur_index_node != end_index_node && (*cur_index_node)->path().find(dir_path, 0) == 0) {
-            cur_index_node++;
-          }
-        } else {
-          cur_index_node++;
-        }
-
-        (*cur_tree_node)->set_dirty();
-        new_index.push_back(*cur_tree_node);
-        cur_tree_node++;
-        continue;
+      // Check if hash can be reused from index
+      if ((*index_it)->is_equivalent(*tree_it)) {
+        (*tree_it)->set_hash((*index_it)->hash());
+      } else {
+        (*tree_it)->set_dirty();
       }
 
-      // Compare inode permissions
-      else if ((*cur_tree_node)->permissions() != (*cur_index_node)->permissions()) {
-        (*cur_tree_node)->set_dirty();
-        new_index.push_back(*cur_tree_node);
-      }
-
-      // Compare modification time
-      else if ((*cur_tree_node)->last_write_time() != (*cur_index_node)->last_write_time()) {
-        (*cur_tree_node)->set_dirty();
-        new_index.push_back(*cur_tree_node);
-      }
-
-      else {
-        (*cur_tree_node)->set_hash((*cur_index_node)->hash());
-        new_index.push_back(*cur_tree_node);
-      }
-
-      cur_tree_node++;
-      cur_index_node++;
-      continue;
+      ++tree_it;
+      ++index_it;
     }
   }
 
-  _inodes = std::move(new_index._inodes);
+  // Replace root node
   _root = std::move(tree.root());
 }
 
-}  // namespace fstree
+} // namespace fstree

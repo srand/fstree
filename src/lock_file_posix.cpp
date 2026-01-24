@@ -8,6 +8,10 @@
 
 namespace fstree {
 
+// Context class implementations
+lock_file::context::context(lock_file& lock) : _lock(lock) {}
+lock_file::context::~context() { _lock.unlock(); }
+
 // A lock file is a file that is created to indicate that a resource is in use.
 lock_file::lock_file(const std::filesystem::path& path) : _path(path), _fd(-1) {
   // Create parent directories
