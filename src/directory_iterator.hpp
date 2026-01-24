@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ignore.hpp"
+#include "glob_list.hpp"
 #include "inode.hpp"
 
 #include <filesystem>
@@ -21,7 +21,7 @@ class sorted_directory_iterator {
  private:
   inode::ptr _root;
   pool* _pool;
-  ignore_list _ignores;
+  glob_list _ignores;
   std::mutex _mutex;
   std::vector<inode::ptr> _inodes;
 
@@ -35,10 +35,10 @@ class sorted_directory_iterator {
   sorted_directory_iterator() = default;
 
   explicit sorted_directory_iterator(
-      const std::filesystem::path& path, const ignore_list& ignores, bool recursive = true);
+      const std::filesystem::path& path, const glob_list& ignores, bool recursive = true);
 
   explicit sorted_directory_iterator(
-      const std::filesystem::path& path, const ignore_list& ignores, compare_function compare, bool recursive = true);
+      const std::filesystem::path& path, const glob_list& ignores, compare_function compare, bool recursive = true);
 
   ~sorted_directory_iterator();
 
@@ -52,7 +52,7 @@ class sorted_directory_iterator {
 
  private:
   void read_directory(
-      const std::filesystem::path& abs, const std::filesystem::path& rel, inode::ptr& parent, const ignore_list& ignores);
+      const std::filesystem::path& abs, const std::filesystem::path& rel, inode::ptr& parent, const glob_list& ignores);
 };
 
 }  // namespace fstree

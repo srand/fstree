@@ -26,7 +26,7 @@ index::index(const std::filesystem::path& root)
   : _root_path(root), _root(fstree::make_intrusive<fstree::inode>())
 {}
 
-index::index(const std::filesystem::path& root, const ignore_list& ignore) 
+index::index(const std::filesystem::path& root, const glob_list& ignore) 
   : _ignore(ignore)
   , _root_path(root)
   , _root(fstree::make_intrusive<fstree::inode>()) 

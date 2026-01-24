@@ -29,7 +29,7 @@ const inode::ptr& sorted_directory_iterator::root() const {
 }
 
 void sorted_directory_iterator::read_directory(
-    const std::filesystem::path& abs, const std::filesystem::path& rel, inode::ptr& parent, const ignore_list& ignores) {
+    const std::filesystem::path& abs, const std::filesystem::path& rel, inode::ptr& parent, const glob_list& ignores) {
   // Open the directory
   DIR* dir = opendir(abs.c_str());
   if (dir == nullptr) {

@@ -5,13 +5,13 @@
 namespace fstree {
 
 sorted_directory_iterator::sorted_directory_iterator(
-    const std::filesystem::path& path, const ignore_list& ignores, bool recursive)
+    const std::filesystem::path& path, const glob_list& ignores, bool recursive)
     : sorted_directory_iterator(path, ignores, [](const inode::ptr& a, const inode::ptr& b) { 
         return a->path() < b->path(); }, recursive)
 {}
        
 sorted_directory_iterator::sorted_directory_iterator(
-    const std::filesystem::path& path, const ignore_list& ignores, compare_function compare, bool recursive) 
+    const std::filesystem::path& path, const glob_list& ignores, compare_function compare, bool recursive) 
     : _root(fstree::make_intrusive<fstree::inode>())
     , _pool(&get_pool())
     , _ignores(ignores)

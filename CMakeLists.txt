@@ -37,7 +37,7 @@ set(SRCS
     src/commit_ostream.cpp
     src/directory_iterator.cpp
     src/event.cpp
-    src/ignore.cpp
+    src/glob_list.cpp
     src/index.cpp
     src/inode.cpp
     src/intrusive_ptr.cpp
@@ -137,7 +137,7 @@ install(
 add_executable(
     fstree_test
     test/test_config.cpp
-    test/test_ignore.cpp
+    test/test_glob.cpp
     test/test_iterator.cpp
     test/test_status.cpp
     test/test_url.cpp

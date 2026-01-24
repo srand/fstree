@@ -1,5 +1,5 @@
 #include "directory_iterator.hpp"
-#include "ignore.hpp"
+#include "glob_list.hpp"
 
 #include <gtest/gtest.h>
 #include <filesystem>
@@ -58,7 +58,7 @@ protected:
 
 // Test basic functionality
 TEST_F(DirectoryIteratorTest, EmptyDirectory) {
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores);
     
     EXPECT_EQ(it.begin(), it.end());
@@ -69,7 +69,7 @@ TEST_F(DirectoryIteratorTest, EmptyDirectory) {
 TEST_F(DirectoryIteratorTest, SingleFile) {
     CreateFile("test.txt");
     
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores);
     
     auto paths = GetPaths(it);
@@ -86,7 +86,7 @@ TEST_F(DirectoryIteratorTest, MultipleFiles) {
     CreateFile("file2.txt");
     CreateFile("file3.txt");
     
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores);
     
     auto paths = GetPaths(it);
@@ -101,7 +101,7 @@ TEST_F(DirectoryIteratorTest, SortedByPath) {
     CreateFile("a.txt");
     CreateFile("b.txt");
     
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores);
     
     std::vector<std::string> paths;
@@ -120,7 +120,7 @@ TEST_F(DirectoryIteratorTest, RecursiveDirectories) {
     CreateDirectory("subdir/nested");
     CreateFile("subdir/nested/file3.txt");
     
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores);
     
     auto paths = GetPaths(it);
@@ -135,7 +135,7 @@ TEST_F(DirectoryIteratorTest, NonRecursive) {
     CreateFile("subdir/file1.txt");
     CreateFile("file2.txt");
     
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores, false); // non-recursive
     
     auto paths = GetPaths(it);
@@ -153,7 +153,7 @@ TEST_F(DirectoryIteratorTest, IgnorePatterns) {
     CreateDirectory("logs");
     CreateFile("logs/app.log");
     
-    ignore_list ignores;
+    glob_list ignores;
     ignores.add("*.log");
     ignores.add("*.tmp");
     ignores.finalize();
@@ -176,7 +176,7 @@ TEST_F(DirectoryIteratorTest, IgnoreDirectories) {
     CreateFile("src/main.cpp");
     CreateFile("README.md");
     
-    ignore_list ignores;
+    glob_list ignores;
     ignores.add("build");
     ignores.finalize();
     
@@ -197,7 +197,7 @@ TEST_F(DirectoryIteratorTest, IgnoreNestedPaths) {
     CreateFile("project/src/main.js");
     CreateFile("project/package.json");
     
-    ignore_list ignores;
+    glob_list ignores;
     ignores.add("node_modules");
     ignores.finalize();
     
@@ -218,7 +218,7 @@ TEST_F(DirectoryIteratorTest, SymlinkFiles) {
     CreateFile("target.txt", "target content");
     CreateSymlink("link.txt", "target.txt");
     
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores);
     
     auto paths = GetPaths(it);
@@ -245,7 +245,7 @@ TEST_F(DirectoryIteratorTest, SymlinkDirectories) {
     CreateFile("target_dir/file.txt");
     CreateSymlink("link_dir", "target_dir");
     
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores);
     
     auto paths = GetPaths(it);
@@ -264,7 +264,7 @@ TEST_F(DirectoryIteratorTest, CustomCompareFunction) {
     CreateFile("2_second.txt");
     CreateFile("3_third.txt");
     
-    ignore_list ignores;
+    glob_list ignores;
     
     // Sort by reverse path order
     auto reverse_compare = [](const inode::ptr& a, const inode::ptr& b) {
@@ -286,7 +286,7 @@ TEST_F(DirectoryIteratorTest, CompareBySize) {
     CreateFile("medium.txt", "abc");
     CreateFile("large.txt", "abcdefghij");
     
-    ignore_list ignores;
+    glob_list ignores;
     
     // Sort by file size (ascending)
     auto size_compare = [](const inode::ptr& a, const inode::ptr& b) {
@@ -309,7 +309,7 @@ TEST_F(DirectoryIteratorTest, IteratorInterface) {
     CreateFile("file2.txt");
     CreateFile("file3.txt");
     
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores);
     
     // Test begin/end
@@ -338,7 +338,7 @@ TEST_F(DirectoryIteratorTest, IteratorInterface) {
 TEST_F(DirectoryIteratorTest, RootAccess) {
     CreateFile("test.txt");
     
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores);
     
     auto root = it.root();
@@ -359,7 +359,7 @@ TEST_F(DirectoryIteratorTest, SpecialFiles) {
     CreateFile(".fstree", "fstree config");
     CreateFile("normal.txt");
     
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores);
     
     auto paths = GetPaths(it);
@@ -374,7 +374,7 @@ TEST_F(DirectoryIteratorTest, DeepNesting) {
     CreateFile("a/b/c/d/e/deep.txt");
     CreateFile("a/shallow.txt");
     
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores);
     
     auto paths = GetPaths(it);
@@ -398,7 +398,7 @@ TEST_F(DirectoryIteratorTest, MixedFileTypes) {
     fs::permissions(test_dir / "executable.sh", 
                    fs::perms::owner_all | fs::perms::group_read | fs::perms::others_read, ec);
     
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores);
     
     auto paths = GetPaths(it);
@@ -419,7 +419,7 @@ TEST_F(DirectoryIteratorTest, MixedFileTypes) {
 
 // Test error conditions
 TEST_F(DirectoryIteratorTest, NonExistentDirectory) {
-    ignore_list ignores;
+    glob_list ignores;
     
     EXPECT_THROW(
         sorted_directory_iterator(test_dir / "nonexistent", ignores),
@@ -430,7 +430,7 @@ TEST_F(DirectoryIteratorTest, NonExistentDirectory) {
 TEST_F(DirectoryIteratorTest, FileInsteadOfDirectory) {
     CreateFile("notadir.txt");
     
-    ignore_list ignores;
+    glob_list ignores;
     
     EXPECT_THROW(
         sorted_directory_iterator(test_dir / "notadir.txt", ignores),
@@ -446,7 +446,7 @@ TEST_F(DirectoryIteratorTest, ManyFiles) {
         CreateFile("file" + std::to_string(i) + ".txt");
     }
     
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores);
     
     auto paths = GetPaths(it);
@@ -470,7 +470,7 @@ TEST_F(DirectoryIteratorTest, ComplexIgnorePatterns) {
     CreateFile(".git/config");
     CreateFile(".gitignore");
     
-    ignore_list ignores;
+    glob_list ignores;
     ignores.add("build");
     ignores.add("*.tmp");
     ignores.add("temp");
@@ -496,7 +496,7 @@ TEST_F(DirectoryIteratorTest, InodeParentship) {
     CreateDirectory("parent/child/grandchild");
     CreateFile("parent/child/grandchild/file.txt");
     
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores);
     
     inode::ptr parent_inode = nullptr;
@@ -531,7 +531,7 @@ TEST_F(DirectoryIteratorTest, InodeChildren) {
     CreateFile("dir/file1.txt");
     CreateFile("dir/subdir/file2.txt");
     
-    ignore_list ignores;
+    glob_list ignores;
     sorted_directory_iterator it(test_dir, ignores);
     
     inode::ptr dir_inode = nullptr;

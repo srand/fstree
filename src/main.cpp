@@ -1,11 +1,7 @@
-#include "remote_jolt.hpp"
 #include "argparser.hpp"
 #include "cache.hpp"
 #include "event.hpp"
-#include "filesystem.hpp"
-#include "ignore.hpp"
 #include "index.hpp"
-#include "sha1.hpp"
 #include "thread.hpp"
 #include "url.hpp"
 #include "version.hpp"
@@ -13,12 +9,11 @@
 #include <cctype>
 #include <chrono>
 #include <filesystem>
-#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <string>
 #include <thread>
-#include <vector>
+#include <unistd.h>
 
 int usage() {
   std::cerr << "fstree ls-index [<directory>]" << std::endl;
@@ -289,7 +284,7 @@ int cmd_fstree(const fstree::argparser& args) {
     std::filesystem::path workspace = args.size() > 1 ? args.get_value_path(1) : current_path();
     if (workspace.empty()) throw std::invalid_argument("missing workspace argument");
 
-    fstree::ignore_list ignores;
+    fstree::glob_list ignores;
     try {
       ignores.load((workspace / ignorefile).string());
     }
@@ -324,7 +319,7 @@ int cmd_fstree(const fstree::argparser& args) {
     std::filesystem::path workspace = args.size() > 1 ? args.get_value_path(1) : current_path();
     if (workspace.empty()) throw std::invalid_argument("missing workspace argument");
 
-    fstree::ignore_list ignores;
+    fstree::glob_list ignores;
     try {
       ignores.load((workspace / ignorefile).string());
     }

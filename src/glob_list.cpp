@@ -1,4 +1,4 @@
-#include "ignore.hpp"
+#include "glob_list.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -11,10 +11,10 @@
 namespace fstree {
 
 // Default constructor
-ignore_list::ignore_list() = default;
+glob_list::glob_list() = default;
 
 // Add a .gitignore style pattern to the ignore list
-void ignore_list::add(const std::string& input_pattern) {
+void glob_list::add(const std::string& input_pattern) {
   std::string pattern = input_pattern;
 
   // Ignore trailing slashes
@@ -35,7 +35,7 @@ void ignore_list::add(const std::string& input_pattern) {
   }
 }
 
-void ignore_list::compile(const std::vector<std::string>& patterns, std::regex& regex) {
+void glob_list::compile(const std::vector<std::string>& patterns, std::regex& regex) {
   std::string pattern;
   for (const auto& p : patterns) {
     if (!pattern.empty()) {
@@ -111,7 +111,7 @@ void ignore_list::compile(const std::vector<std::string>& patterns, std::regex& 
 }
 
 // Load patterns from a file
-void ignore_list::load(const std::filesystem::path& path) {
+void glob_list::load(const std::filesystem::path& path) {
   std::ifstream file(path);
   if (!file) {
     throw std::runtime_error("failed to open " + path.string() + " for reading");
@@ -129,13 +129,13 @@ void ignore_list::load(const std::filesystem::path& path) {
   finalize();
 }
 
-void ignore_list::finalize() {
+void glob_list::finalize() {
   compile(_inclusive_patterns, _inclusive_regex);
   compile(_exclusive_patterns, _exclusive_regex);
 }
 
 // Returns true if the path should be ignored.
-bool ignore_list::match(const std::string& path) const {
+bool glob_list::match(const std::string& path) const {
   if (std::regex_match(path, _exclusive_regex)) {
     return false;
   }
@@ -145,11 +145,11 @@ bool ignore_list::match(const std::string& path) const {
   return false;
 }
 
-std::vector<std::string>::const_iterator ignore_list::begin() const { 
+std::vector<std::string>::const_iterator glob_list::begin() const { 
   return _inclusive_patterns.begin(); 
 }
 
-std::vector<std::string>::const_iterator ignore_list::end() const { 
+std::vector<std::string>::const_iterator glob_list::end() const { 
   return _inclusive_patterns.end(); 
 }
 

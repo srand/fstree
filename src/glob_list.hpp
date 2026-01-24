@@ -2,10 +2,7 @@
 #define IGNORE_HPP
 
 #include <filesystem>
-#include <fstream>
-#include <iostream>
 #include <regex>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -16,14 +13,14 @@ namespace fstree {
 // The patterns are matched in the order they are added.
 // The first pattern that matches the path determines if the path is ignored.
 // If a negated pattern matches the path, the path is not ignored.
-class ignore_list {
+class glob_list {
   std::vector<std::string> _inclusive_patterns;
   std::vector<std::string> _exclusive_patterns;
   std::regex _inclusive_regex;
   std::regex _exclusive_regex;
 
  public:
-  ignore_list();
+  glob_list();
 
   // Add a .gitignore style pattern to the ignore list
   void add(const std::string& input_pattern);

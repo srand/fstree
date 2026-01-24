@@ -487,7 +487,7 @@ void cache::pull(fstree::index& index, fstree::remote& remote, const std::string
 void cache::evict() {
   fstree::wait_group wg;
 
-  for (const auto& entry : sorted_directory_iterator(_objectdir, ignore_list(), false)) {
+  for (const auto& entry : sorted_directory_iterator(_objectdir, glob_list(), false)) {
     if (entry->is_directory()) {
       wg.add(1);
       get_pool().enqueue([this, entry, &wg]() {
@@ -507,7 +507,7 @@ void cache::evict() {
 
 void cache::evict_subdir(const std::filesystem::path& dir) {
   const auto sort_by_mtime = [](const inode::ptr& a, const inode::ptr& b) { return a->last_write_time() < b->last_write_time(); };
-  sorted_directory_iterator objects(dir, ignore_list(), sort_by_mtime, false);
+  sorted_directory_iterator objects(dir, glob_list(), sort_by_mtime, false);
 
   // Summarize the size of all objects in the directory
   size_t size = 0;

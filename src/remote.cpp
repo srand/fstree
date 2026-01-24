@@ -2,6 +2,8 @@
 
 #include "remote_jolt.hpp"
 
+#include <memory>
+
 namespace fstree {
 
 // remote::create

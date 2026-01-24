@@ -1,5 +1,6 @@
 #pragma once
-#include "ignore.hpp"
+
+#include "glob_list.hpp"
 #include "inode.hpp"
 
 #include <filesystem>
@@ -14,7 +15,7 @@ class cache;
 class remote;
 
 class index {
-  ignore_list _ignore;
+  glob_list _ignore;
   std::vector<inode::ptr> _inodes;
   std::filesystem::path _root_path;
   inode::ptr _root;
@@ -25,7 +26,7 @@ class index {
 
   explicit index(const std::filesystem::path& root);
 
-  explicit index(const std::filesystem::path& root, const ignore_list& ignore);
+  explicit index(const std::filesystem::path& root, const glob_list& ignore);
 
   ~index();
 

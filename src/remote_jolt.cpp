@@ -4,8 +4,6 @@
 
 #include <cstdio>
 #include <fstream>
-#include <iostream>
-#include <memory>
 
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/security/credentials.h>

@@ -1,10 +1,10 @@
 
-#include "ignore.hpp"
+#include "glob_list.hpp"
 
 #include <gtest/gtest.h>
 
-TEST(Ignore, Add_Simple) {
-  fstree::ignore_list ignore;
+TEST(Glob, Add_Simple) {
+  fstree::glob_list ignore;
   ignore.add("*.cpp");
   ignore.add("*.h");
   // ignore.add("!*.o");
@@ -13,10 +13,10 @@ TEST(Ignore, Add_Simple) {
   EXPECT_TRUE(ignore.match("src/main.cpp"));
   EXPECT_TRUE(ignore.match("src/main.h"));
   EXPECT_FALSE(ignore.match("src/main.o"));
-}
+} 
 
-TEST(Ignore, Add_Simple_Path) {
-  fstree::ignore_list ignore;
+TEST(Glob, Add_Simple_Path) {
+  fstree::glob_list ignore;
   ignore.add(".git");
   ignore.finalize();
 
@@ -24,8 +24,8 @@ TEST(Ignore, Add_Simple_Path) {
   EXPECT_TRUE(ignore.match(".git/objects"));
 }
 
-TEST(Ignore, Add_Subdir) {
-  fstree::ignore_list ignore;
+TEST(Glob, Add_Subdir) {
+  fstree::glob_list ignore;
   ignore.add("src");
   // ignore.add("!*.o");
   ignore.finalize();
@@ -35,8 +35,8 @@ TEST(Ignore, Add_Subdir) {
   // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
-TEST(Ignore, Add_Recursive) {
-  fstree::ignore_list ignore;
+TEST(Glob, Add_Recursive) {
+  fstree::glob_list ignore;
   ignore.add("src/**");
   // ignore.add("!*.o");
   ignore.finalize();
@@ -46,8 +46,8 @@ TEST(Ignore, Add_Recursive) {
   // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
-TEST(Ignore, Add_Recursive_Subdir) {
-  fstree::ignore_list ignore;
+TEST(Glob, Add_Recursive_Subdir) {
+  fstree::glob_list ignore;
   ignore.add("src/**/main.*");
   // ignore.add("!*.o");
   ignore.finalize();
@@ -57,8 +57,8 @@ TEST(Ignore, Add_Recursive_Subdir) {
   // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
-TEST(Ignore, Add_Recursive_Subdir_Star) {
-  fstree::ignore_list ignore;
+TEST(Glob, Add_Recursive_Subdir_Star) {
+  fstree::glob_list ignore;
   ignore.add("src/**/main*");
   // ignore.add("!*.o");
   ignore.finalize();
@@ -68,8 +68,8 @@ TEST(Ignore, Add_Recursive_Subdir_Star) {
   // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
-TEST(Ignore, Add_Recursive_Subdir_Star_Star) {
-  fstree::ignore_list ignore;
+TEST(Glob, Add_Recursive_Subdir_Star_Star) {
+  fstree::glob_list ignore;
   ignore.add("src/**/main**");
   // ignore.add("!*.o");
   ignore.finalize();
@@ -79,8 +79,8 @@ TEST(Ignore, Add_Recursive_Subdir_Star_Star) {
   // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
-TEST(Ignore, Add_Recursive_Subdir_Star_Star_Star) {
-  fstree::ignore_list ignore;
+TEST(Glob, Add_Recursive_Subdir_Star_Star_Star) {
+  fstree::glob_list ignore;
   ignore.add("src/**/main***");
   // ignore.add("!*.o");
   ignore.finalize();
@@ -90,8 +90,8 @@ TEST(Ignore, Add_Recursive_Subdir_Star_Star_Star) {
   // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
-TEST(Ignore, Add_Question) {
-  fstree::ignore_list ignore;
+TEST(Glob, Add_Question) {
+  fstree::glob_list ignore;
   ignore.add("src/main.?pp");
   // ignore.add("!*.o");
   ignore.finalize();
@@ -102,8 +102,8 @@ TEST(Ignore, Add_Question) {
   // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
-TEST(Ignore, Add_Star) {
-  fstree::ignore_list ignore;
+TEST(Glob, Add_Star) {
+  fstree::glob_list ignore;
   ignore.add("src/main.*");
   // ignore.add("!*.o");
   ignore.finalize();
@@ -113,8 +113,8 @@ TEST(Ignore, Add_Star) {
   // EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
-TEST(Ignore, DISABLED_Add_Negation_Star) {
-  fstree::ignore_list ignore;
+TEST(Glob, DISABLED_Add_Negation_Star) {
+  fstree::glob_list ignore;
   ignore.add("src/main.cpp");
   ignore.add("!src/main.*");
   ignore.add("!*.o");
@@ -125,9 +125,9 @@ TEST(Ignore, DISABLED_Add_Negation_Star) {
   EXPECT_FALSE(ignore.match("src/main.o"));
 }
 
-TEST(Ignore, Load) {
-  fstree::ignore_list ignore;
-  ignore.load("test/test_ignore.txt");
+TEST(Glob, Load) {
+  fstree::glob_list ignore;
+  ignore.load("test/test_glob.txt");
 
   EXPECT_TRUE(ignore.match("src/main.cpp"));
   EXPECT_TRUE(ignore.match("src/main.h"));

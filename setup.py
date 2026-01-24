@@ -27,7 +27,7 @@ ext_modules = [
             "src/event.cpp",
             "src/filesystem_posix.cpp",
             # "src/filesystem_win32.cpp",
-            "src/ignore.cpp",
+            "src/glob_list.cpp",
             "src/index.cpp",
             "src/inode.cpp",
             "src/intrusive_ptr.cpp",

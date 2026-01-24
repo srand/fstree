@@ -8,10 +8,8 @@
 #include "remote.hpp"
 #include "url.hpp"
 #include "inode.hpp"
-#include "ignore.hpp"
+#include "glob_list.hpp"
 #include "filesystem.hpp"
-#include <chrono>
-#include <memory>
 
 namespace py = pybind11;
 
@@ -21,32 +19,31 @@ PYBIND11_DECLARE_HOLDER_TYPE(T, fstree::intrusive_ptr<T>);
 PYBIND11_MODULE(fstree, m) {
     m.doc() = "Python bindings for fstree - filesystem tree sharing and sync";
     
-    // Expose the ignore_list class
-    py::class_<fstree::ignore_list>(m, "GlobList")
+    // Expose the glob_list class
+    py::class_<fstree::glob_list>(m, "GlobList")
         .def(py::init<>())
         .def(py::init([](const std::string& path) {
-            auto il = std::make_unique<fstree::ignore_list>();
+            auto il = std::make_unique<fstree::glob_list>();
             il->load(path);
             il->finalize();
             return il;
         }))
         .def(py::init([](const std::vector<std::string>& paths) {
-            auto il = std::make_unique<fstree::ignore_list>();
+            auto il = std::make_unique<fstree::glob_list>();
             for (const auto& path : paths) {
                 il->add(path);
             }
             il->finalize();
             return il;
         }))
-        .def("__iter__", [](const fstree::ignore_list &il) {
+        .def("__iter__", [](const fstree::glob_list &il) {
             return py::make_iterator(il.begin(), il.end());
         }, py::keep_alive<0, 1>())
-        .def("add", [](fstree::ignore_list &il, const std::string& pattern) {
+        .def("add", [](fstree::glob_list &il, const std::string& pattern) {
             il.add(pattern);
             il.finalize();
         })
-        .def("matches", &fstree::ignore_list::match);
-
+        .def("matches", &fstree::glob_list::match);
 
     // Expose the inode class using smart pointers
     py::class_<fstree::inode, fstree::intrusive_ptr<fstree::inode>>(m, "Inode")
@@ -88,7 +85,7 @@ PYBIND11_MODULE(fstree, m) {
         .def(py::init([](const std::string& path) {
             return std::make_unique<fstree::index>(std::filesystem::path(path));
         }))
-        .def(py::init([](const std::string& path, const fstree::ignore_list& ignore) {
+        .def(py::init([](const std::string& path, const fstree::glob_list& ignore) {
             return std::make_unique<fstree::index>(std::filesystem::path(path), ignore);
         }))
         .def("checkout", [](fstree::index &idx, fstree::cache &cache, const std::string& path) {
