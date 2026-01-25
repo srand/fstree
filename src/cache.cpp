@@ -2,6 +2,7 @@
 
 #include "directory_iterator.hpp"
 #include "event.hpp"
+#include "exception.hpp"
 #include "filesystem.hpp"
 #include "hash.hpp"
 #include "inode.hpp"
@@ -16,9 +17,7 @@ namespace fs = std::filesystem;
 
 namespace fstree {
 
-std::filesystem::path cache::default_path() {
-  return fstree::cache_path();
-}
+std::filesystem::path cache::default_path() { return fstree::cache_path(); }
 
 cache::cache(const std::filesystem::path& path, size_t max_size, std::chrono::seconds retention_period)
     : _objectdir(path / "objects"),
@@ -355,7 +354,31 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
     }
 
     // Query the remote for missing trees and objects
-    remote.has_tree(tree_hash, missing_trees, missing_objects);
+    try {
+      remote.has_tree(tree_hash, missing_trees, missing_objects);
+    }
+    catch (const fstree::unsupported_operation& e) {
+      // If the has_tree method is unsupported, check all objects in the index manually
+
+      // Check the root tree
+      bool found = remote.has_object(tree_hash);
+      if (!found) {
+        missing_trees.push_back(tree_hash);
+      }
+
+      // Check all objects in the index
+      for (const auto& inode : index) {
+        bool found = remote.has_object(inode->hash());
+        if (!found) {
+          if (inode->is_directory()) {
+            missing_trees.push_back(inode->hash());
+          }
+          else if (inode->is_file()) {
+            missing_objects.push_back(inode->hash());
+          }
+        }
+      }
+    }
 
     // Write missing objects in parallel
     for (const auto& hash : missing_objects) {
@@ -505,7 +528,9 @@ void cache::evict() {
 }
 
 void cache::evict_subdir(const std::filesystem::path& dir) {
-  const auto sort_by_mtime = [](const inode::ptr& a, const inode::ptr& b) { return a->last_write_time() < b->last_write_time(); };
+  const auto sort_by_mtime = [](const inode::ptr& a, const inode::ptr& b) {
+    return a->last_write_time() < b->last_write_time();
+  };
   sorted_directory_iterator objects(dir, glob_list(), sort_by_mtime, false);
 
   // Summarize the size of all objects in the directory

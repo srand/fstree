@@ -36,6 +36,8 @@ class url {
     if (end == std::string::npos) return "/";
     return _url.substr(end);
   }
+
+  const std::string& string() const { return _url; }
 };
 
 }  // namespace fstree

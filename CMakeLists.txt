@@ -6,6 +6,7 @@ project(fstree)
 ################################################################################
 
 option(fstree_BUILD_TESTS "Build tests" ON)
+option(fstree_ENABLE_HTTP "Enable HTTP remote support" ON)
 set(fstree_HASH_ALGORITHM "blake3" CACHE STRING "Hash algorithm to use (blake3, sha1)")
 
 ################################################################################
@@ -44,6 +45,10 @@ set(CMAKE_CXX_STANDARD 20)
 find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
+if (fstree_ENABLE_HTTP)
+    find_package(CURL CONFIG REQUIRED)
+    message(STATUS "HTTP remote support enabled")
+endif()
 if (${fstree_HASH_ALGORITHM} STREQUAL "blake3")
     find_package(blake3 CONFIG REQUIRED)
     message(STATUS "Using BLAKE3 hash algorithm")
@@ -72,6 +77,13 @@ set(SRCS
     src/thread.cpp
     src/thread_pool.cpp
 )
+
+if (fstree_ENABLE_HTTP)
+    add_compile_definitions(FSTREE_ENABLE_HTTP_REMOTE)
+    list(APPEND SRCS
+        src/remote_http.cpp
+    )
+endif()
 
 if (WIN32)
     list(APPEND SRCS
@@ -122,6 +134,13 @@ target_link_libraries(
     gRPC::grpc++
     protobuf::libprotobuf
 )
+
+if (fstree_ENABLE_HTTP)
+    target_link_libraries(
+        fstreelib
+        CURL::libcurl
+    )
+endif()
 
 if (${fstree_HASH_ALGORITHM} STREQUAL "blake3")
     target_link_libraries(

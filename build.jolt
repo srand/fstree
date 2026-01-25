@@ -4,6 +4,7 @@ from jolt.plugins import cmake
 from jolt.plugins import git
 from jolt.plugins import python
 from jolt.pkgs import blake3
+from jolt.pkgs import curl
 from jolt.pkgs import grpc
 from jolt.pkgs import googletest
 
@@ -20,6 +21,7 @@ class GoogleTest(googletest.GoogleTest):
 
 
 @attributes.requires("requires_{hash}")
+@attributes.requires("requires_{http[curl,no_curl]}")
 @cmake.requires()
 @cmake.use_ninja()
 @git.influence("CMakeLists.txt")
@@ -29,10 +31,15 @@ class Fstree(cmake.CMake):
     incremental = True
     debug = BooleanParameter(False, "Build with debug info")
     hash = Parameter("blake3", ["blake3", "sha1"], "Hash algorithm to use")
+    http = BooleanParameter(True, "Enable HTTP remote support")
     config = "{debug[Debug,Release]}"
     requires = ["google/test", "grpc"]
     requires_blake3 = ["blake3"]
-    options = ["fstree_HASH_ALGORITHM={hash}"]
+    requires_curl = ["curl"]
+    options = [
+        "fstree_HASH_ALGORITHM={hash}",
+        "fstree_ENABLE_HTTP={http}",
+    ]
 
 
 class PythonBuildEnv(python.PythonEnv):

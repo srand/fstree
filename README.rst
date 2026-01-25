@@ -20,6 +20,12 @@ A reference server implementation is available as the
 `robrt/jolt-cache <https://hub.docker.com/r/robrt/jolt-cache>`_
 Docker image on Docker Hub.
 
+HTTP remotes are also supported for basic upload and download of objects. This allows
+integration with existing HTTP file servers or CDNs. Note that HTTP remotes are 
+significantly less efficient than the gRPC server, as they do not support
+querying for the presence of multiple objects and trees at once. 
+
+
 Usage
 -----
 
@@ -42,18 +48,30 @@ The steps above can be split into two separate commands:
   fstree write-tree /path/to/data
   fstree push --remote jolt://localhost:9090 <digest>
 
+To push a tree to a standard HTTP server, run:
+
+.. code-block::
+
+  fstree write-tree-push --remote http://localhost:8080 /path/to/data'
+
 To pull a tree from the server, run:
 
 .. code-block::
 
   fstree pull-checkout --remote jolt://localhost:9090 <digest> /path/to/data
-
+  
 The steps above can be split into two separate commands:
 
 .. code-block::
 
   fstree pull --remote jolt://localhost:9090 <digest>
   fstree checkout <digest> /path/to/data
+
+To pull a tree from a standard HTTP server, run:
+
+.. code-block::
+
+  fstree pull-checkout --remote http://localhost:8080 <digest> /path/to/data
 
 To list the contents of a tree, run:
 
