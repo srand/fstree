@@ -4,6 +4,7 @@
 #include "directory_iterator.hpp"
 #include "event.hpp"
 #include "filesystem.hpp"
+#include "hash.hpp"
 #include "inode.hpp"
 
 #include <algorithm>
@@ -489,7 +490,12 @@ void index::refresh() {
       _inodes.push_back(*tree_it);
 
       // Check if hash can be reused from index
-      if ((*index_it)->is_equivalent(*tree_it)) {
+      // It's reused if the inodes have the same metadata.
+      // The hash length must also match the current algorithm's hash length.
+      if ((*index_it)->hash().length() != fstree::hash_digest_len) {
+        (*tree_it)->set_dirty();
+      }
+      else if ((*index_it)->is_equivalent(*tree_it)) {
         (*tree_it)->set_hash((*index_it)->hash());
       } else {
         (*tree_it)->set_dirty();

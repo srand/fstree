@@ -1,5 +1,5 @@
 #include "inode.hpp"
-#include "sha1.hpp"
+#include "hash.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -120,7 +120,7 @@ void inode::unignore() {
 bool inode::is_unignored() const { return _unignored; }
 
 void inode::rehash(const std::filesystem::path& root) { 
-  _hash = sha1_hex_file(root / _path); 
+  _hash = hashsum_hex_file(root / _path); 
 }
 
 void inode::clear() {

@@ -1,7 +1,9 @@
-from jolt import Alias, BooleanParameter, Task, Test
+from jolt import attributes
+from jolt import Alias, BooleanParameter, Parameter, Task, Test
 from jolt.plugins import cmake
 from jolt.plugins import git
 from jolt.plugins import python
+from jolt.pkgs import blake3
 from jolt.pkgs import grpc
 from jolt.pkgs import googletest
 
@@ -17,6 +19,7 @@ class GoogleTest(googletest.GoogleTest):
     ]
 
 
+@attributes.requires("requires_{hash}")
 @cmake.requires()
 @cmake.use_ninja()
 @git.influence("CMakeLists.txt")
@@ -25,8 +28,11 @@ class GoogleTest(googletest.GoogleTest):
 class Fstree(cmake.CMake):
     incremental = True
     debug = BooleanParameter(False, "Build with debug info")
+    hash = Parameter("blake3", ["blake3", "sha1"], "Hash algorithm to use")
     config = "{debug[Debug,Release]}"
     requires = ["google/test", "grpc"]
+    requires_blake3 = ["blake3"]
+    options = ["fstree_HASH_ALGORITHM={hash}"]
 
 
 class PythonBuildEnv(python.PythonEnv):

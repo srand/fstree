@@ -3,9 +3,8 @@
 #include "directory_iterator.hpp"
 #include "event.hpp"
 #include "filesystem.hpp"
+#include "hash.hpp"
 #include "inode.hpp"
-#include "sha1.hpp"
-#include "thread.hpp"
 #include "thread_pool.hpp"
 #include "wait_group.hpp"
 
@@ -233,7 +232,7 @@ void cache::create_dirtree(inode::ptr& node) {
   fclose(fp);
 
   // Then calculate the hash of the file and move it to the object directory.
-  std::string hash = sha1_hex_file(tmp);
+  std::string hash = hashsum_hex_file(tmp);
   node->set_hash(hash);
 
   std::filesystem::path object_path = tree_path(node);

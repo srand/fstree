@@ -1,6 +1,19 @@
 cmake_minimum_required(VERSION 3.21)
 project(fstree)
 
+################################################################################
+# Configuration options
+################################################################################
+
+option(fstree_BUILD_TESTS "Build tests" ON)
+set(fstree_HASH_ALGORITHM "blake3" CACHE STRING "Hash algorithm to use (blake3, sha1)")
+
+################################################################################
+
+if (NOT fstree_HASH_ALGORITHM STREQUAL "sha1" AND NOT fstree_HASH_ALGORITHM STREQUAL "blake3")
+    message(FATAL_ERROR "Invalid fstree_HASH_ALGORITHM: ${fstree_HASH_ALGORITHM}. Supported values are 'sha1' and 'blake3'.")
+endif()
+
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -14,6 +27,12 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "
   set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 endif()
 
+# Add hash algorithm definition
+if (fstree_HASH_ALGORITHM STREQUAL "blake3")
+    add_compile_definitions(FSTREE_HASH_BLAKE3)
+elseif (fstree_HASH_ALGORITHM STREQUAL "sha1")
+    add_compile_definitions(FSTREE_HASH_SHA1)
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -25,6 +44,10 @@ set(CMAKE_CXX_STANDARD 20)
 find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
+if (${fstree_HASH_ALGORITHM} STREQUAL "blake3")
+    find_package(blake3 CONFIG REQUIRED)
+    message(STATUS "Using BLAKE3 hash algorithm")
+endif()
 
 
 ################################################################################
@@ -38,13 +61,13 @@ set(SRCS
     src/directory_iterator.cpp
     src/event.cpp
     src/glob_list.cpp
+    src/hash_${fstree_HASH_ALGORITHM}.cpp
     src/index.cpp
     src/inode.cpp
     src/intrusive_ptr.cpp
     src/jolt.proto
     src/remote.cpp
     src/remote_jolt.cpp
-    src/sha1.cpp
     src/status.cpp
     src/thread.cpp
     src/thread_pool.cpp
@@ -100,6 +123,13 @@ target_link_libraries(
     protobuf::libprotobuf
 )
 
+if (${fstree_HASH_ALGORITHM} STREQUAL "blake3")
+    target_link_libraries(
+        fstreelib
+        BLAKE3::blake3
+    )
+endif()
+
 
 ################################################################################
 # Build executable
@@ -134,45 +164,37 @@ install(
 # Build tests
 ################################################################################
 
-add_executable(
-    fstree_test
-    test/test_config.cpp
-    test/test_glob.cpp
-    test/test_iterator.cpp
-    test/test_status.cpp
-    test/test_url.cpp
-)
-
-target_link_libraries(
-    fstree_test
-    PRIVATE
-        fstreelib
-        GTest::gtest
-        GTest::gtest_main
-)
-
-add_test(
-    NAME
+if (fstree_BUILD_TESTS)
+    add_executable(
         fstree_test
-    COMMAND
+        test/test_config.cpp
+        test/test_glob.cpp
+        test/test_iterator.cpp
+        test/test_status.cpp
+        test/test_url.cpp
+    )
+
+    target_link_libraries(
         fstree_test
-)
+        PRIVATE
+            fstreelib
+            GTest::gtest
+            GTest::gtest_main
+    )
 
-install(
-    TARGETS
-        fstree_test
-    DESTINATION
-        bin
-)
+    add_test(
+        NAME
+            fstree_test
+        COMMAND
+            fstree_test
+    )
 
-################################################################################
-# Python bindings (optional)
-################################################################################
-
-option(BUILD_PYTHON_BINDINGS "Build Python bindings" OFF)
-
-if(BUILD_PYTHON_BINDINGS)
-    add_subdirectory(python)
+    install(
+        TARGETS
+            fstree_test
+        DESTINATION
+            bin
+    )
 endif()
 
 ################################################################################

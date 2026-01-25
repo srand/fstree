@@ -1,6 +1,7 @@
 #include "remote_jolt.hpp"
 
 #include "filesystem.hpp"
+#include "hash.hpp"
 
 #include <cstdio>
 #include <fstream>
@@ -48,7 +49,7 @@ void remote_jolt::write_object(const std::string& hash, const std::filesystem::p
 
   // Create a blob write request message
   fstree::WriteObjectRequest request;
-  request.set_digest(hash);
+  request.set_digest(hash_name + ":" + hash);
 
   // Create a blob write response message
   fstree::WriteObjectResponse response;
@@ -93,7 +94,7 @@ void remote_jolt::read_object(
 
   // Create a blob read request message
   fstree::ReadObjectRequest request;
-  request.set_digest(hash);
+  request.set_digest(hash_name + ":" + hash);
 
   // Create a blob read response message
   fstree::ReadObjectResponse response;
@@ -153,7 +154,7 @@ void remote_jolt::has_tree(
 
   // Create a HasTree request message
   fstree::HasTreeRequest request;
-  request.add_digest(hash);
+  request.add_digest(hash_name + ":" + hash);
 
   // Create a response message
   fstree::HasTreeResponse response;
@@ -193,7 +194,7 @@ void remote_jolt::has_objects(const std::vector<std::string>& hashes, std::vecto
   // Create a blob has request message
   fstree::HasObjectRequest request;
   for (const auto& hash : hashes) {
-    request.add_digest(hash);
+    request.add_digest(hash_name + ":" + hash);
   }
 
   // Create a blob has response message

@@ -1,6 +1,7 @@
 #include "argparser.hpp"
 #include "cache.hpp"
 #include "event.hpp"
+#include "hash.hpp"
 #include "index.hpp"
 #include "thread.hpp"
 #include "url.hpp"
@@ -178,10 +179,10 @@ int cmd_fstree(const fstree::argparser& args) {
     for (const auto& inode : index) {
       auto mtime = std::chrono::nanoseconds(inode->last_write_time());
       if (inode->is_symlink())
-        std::cout << std::setw(40) << inode->hash() << " " << inode->status().str() << " " << rfc3339(mtime) << " "
+        std::cout << std::setw(fstree::hash_digest_len) << inode->hash() << " " << inode->status().str() << " " << rfc3339(mtime) << " "
                   << inode->path() << " -> " << inode->target() << std::endl;
       else
-        std::cout << std::setw(40) << inode->hash() << " " << inode->status().str() << " " << rfc3339(mtime) << " "
+        std::cout << std::setw(fstree::hash_digest_len) << inode->hash() << " " << inode->status().str() << " " << rfc3339(mtime) << " "
                   << inode->path() << std::endl;
     }
 
@@ -197,10 +198,10 @@ int cmd_fstree(const fstree::argparser& args) {
 
     for (const auto& inode : *root) {
       if (inode->is_symlink())
-        std::cout << std::setw(40) << inode->hash() << " " << inode->status().str() << " " << inode->path() << " -> "
+        std::cout << std::setw(fstree::hash_digest_len) << inode->hash() << " " << inode->status().str() << " " << inode->path() << " -> "
                   << inode->target() << std::endl;
       else
-        std::cout << std::setw(40) << inode->hash() << " " << inode->status().str() << " " << inode->path()
+        std::cout << std::setw(fstree::hash_digest_len) << inode->hash() << " " << inode->status().str() << " " << inode->path()
                   << std::endl;
     }
 

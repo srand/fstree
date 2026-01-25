@@ -12,8 +12,10 @@
 #include <string>
 #include <vector>
 
-// Calculate the SHA-1 hash of a stream
-std::string sha1_hex(std::istream& stream) {
+namespace fstree {
+
+// Calculate the hash sum of a stream
+std::string hashsum_hex(std::istream& stream) {
   // Read file contents
   std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(stream), {});
 
@@ -98,12 +100,14 @@ std::string sha1_hex(std::istream& stream) {
   return oss.str();
 }
 
-// Calculate the SHA-1 hash of a file
-std::string sha1_hex_file(const std::filesystem::path& path) {
+// Calculate the hash sum of a file
+std::string hashsum_hex_file(const std::filesystem::path& path) {
   std::ifstream file(path, std::ios::binary);
   if (!file) {
     throw std::runtime_error("failed to open file: " + path.string() + ": " + std::strerror(errno));
   }
 
-  return sha1_hex(file);
+  return hashsum_hex(file);
 }
+
+}  // namespace fstree
