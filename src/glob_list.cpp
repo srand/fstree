@@ -136,10 +136,18 @@ void glob_list::finalize() {
 
 // Returns true if the path should be ignored.
 bool glob_list::match(const std::string& path) const {
-  if (std::regex_match(path, _exclusive_regex)) {
+  std::string adjusted_path = path;
+#ifdef _WIN32
+  for (auto& c : adjusted_path) {
+    if (c == '\\') {
+      c = '/';
+    }
+  }
+#endif
+  if (std::regex_match(adjusted_path, _exclusive_regex)) {
     return false;
   }
-  if (std::regex_match(path, _inclusive_regex)) {
+  if (std::regex_match(adjusted_path, _inclusive_regex)) {
     return true;
   }
   return false;

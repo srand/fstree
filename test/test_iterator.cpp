@@ -48,9 +48,18 @@ protected:
     std::set<std::string> GetPaths(const sorted_directory_iterator& it) {
         std::set<std::string> paths;
         for (const auto& inode : const_cast<sorted_directory_iterator&>(it)) {
-            paths.insert(inode->path());
+            std::string path = inode->path();
+            paths.insert(NormalizePath(path));
         }
         return paths;
+    }
+
+    std::string NormalizePath(const std::string& path) {
+        std::string result = path;
+        for (auto& c : result) {
+            if (c == '\\') c = '/';
+        }
+        return result;
     }
 
     fs::path test_dir;
@@ -106,7 +115,12 @@ TEST_F(DirectoryIteratorTest, SortedByPath) {
     
     std::vector<std::string> paths;
     for (const auto& inode : it) {
-        paths.push_back(inode->path());
+        std::string path = inode->path();
+        // Normalize backslashes to forward slashes
+        for (auto& c : path) {
+            if (c == '\\') c = '/';
+        }
+        paths.push_back(path);
     }
     
     EXPECT_EQ(paths, std::vector<std::string>({"a.txt", "b.txt", "c.txt"}));
@@ -229,7 +243,7 @@ TEST_F(DirectoryIteratorTest, SymlinkFiles) {
     // Find the symlink inode
     inode::ptr link_inode = nullptr;
     for (const auto& inode : it) {
-        if (inode->path() == "link.txt") {
+        if (NormalizePath(inode->path()) == "link.txt") {
             link_inode = inode;
             break;
         }
@@ -237,7 +251,7 @@ TEST_F(DirectoryIteratorTest, SymlinkFiles) {
     
     ASSERT_NE(link_inode, nullptr);
     EXPECT_TRUE(link_inode->is_symlink());
-    EXPECT_EQ(link_inode->target(), "target.txt");
+    EXPECT_EQ(NormalizePath(link_inode->target()), "target.txt");
 }
 
 TEST_F(DirectoryIteratorTest, SymlinkDirectories) {
@@ -275,7 +289,12 @@ TEST_F(DirectoryIteratorTest, CustomCompareFunction) {
     
     std::vector<std::string> paths;
     for (const auto& inode : it) {
-        paths.push_back(inode->path());
+        std::string path = inode->path();
+        // Normalize backslashes to forward slashes
+        for (auto& c : path) {
+            if (c == '\\') c = '/';
+        }
+        paths.push_back(path);
     }
     
     EXPECT_EQ(paths, std::vector<std::string>({"3_third.txt", "2_second.txt", "1_first.txt"}));
@@ -297,7 +316,12 @@ TEST_F(DirectoryIteratorTest, CompareBySize) {
     
     std::vector<std::string> paths;
     for (const auto& inode : it) {
-        paths.push_back(inode->path());
+        std::string path = inode->path();
+        // Normalize backslashes to forward slashes
+        for (auto& c : path) {
+            if (c == '\\') c = '/';
+        }
+        paths.push_back(path);
     }
     
     EXPECT_EQ(paths, std::vector<std::string>({"small.txt", "medium.txt", "large.txt"}));
@@ -409,9 +433,10 @@ TEST_F(DirectoryIteratorTest, MixedFileTypes) {
     
     // Verify file types
     for (const auto& inode : it) {
-        if (inode->path() == "regular.txt" || inode->path() == "executable.sh") {
+        std::string normalized_path = NormalizePath(inode->path());
+        if (normalized_path == "regular.txt" || normalized_path == "executable.sh") {
             EXPECT_TRUE(inode->is_file());
-        } else if (inode->path() == "subdir/nested.txt") {
+        } else if (normalized_path == "subdir/nested.txt") {
             EXPECT_TRUE(inode->is_file());
         }
     }
@@ -505,13 +530,14 @@ TEST_F(DirectoryIteratorTest, InodeParentship) {
     inode::ptr file_inode = nullptr;
     
     for (const auto& inode : it) {
-        if (inode->path() == "parent") {
+        std::string normalized_path = NormalizePath(inode->path());
+        if (normalized_path == "parent") {
             parent_inode = inode;
-        } else if (inode->path() == "parent/child") {
+        } else if (normalized_path == "parent/child") {
             child_inode = inode;
-        } else if (inode->path() == "parent/child/grandchild") {
+        } else if (normalized_path == "parent/child/grandchild") {
             grandchild_inode = inode;
-        } else if (inode->path() == "parent/child/grandchild/file.txt") {
+        } else if (normalized_path == "parent/child/grandchild/file.txt") {
             file_inode = inode;
         }
     }
@@ -536,7 +562,7 @@ TEST_F(DirectoryIteratorTest, InodeChildren) {
     
     inode::ptr dir_inode = nullptr;
     for (const auto& inode : it) {
-        if (inode->path() == "dir") {
+        if (NormalizePath(inode->path()) == "dir") {
             dir_inode = inode;
             break;
         }
@@ -546,7 +572,7 @@ TEST_F(DirectoryIteratorTest, InodeChildren) {
     
     std::set<std::string> child_paths;
     for (const auto& child : *dir_inode) {
-        child_paths.insert(child->path());
+        child_paths.insert(NormalizePath(child->path()));
     }
     
     EXPECT_EQ(child_paths.size(), 2);
