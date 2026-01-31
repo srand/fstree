@@ -1,3 +1,5 @@
+#ifdef _WIN32
+
 #include "filesystem.hpp"
 
 #include <atomic>
@@ -105,3 +107,5 @@ bool touch(const std::filesystem::path& path) {
 }
 
 }  // namespace fstree
+
+#endif  // _WIN32

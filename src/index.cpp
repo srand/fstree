@@ -73,6 +73,10 @@ const inode::ptr& index::root() const { return _root; }
 
 void index::push_back(inode::ptr inode) { _inodes.push_back(inode); }
 
+void index::save() const {
+  save(std::filesystem::path(".fstree/index"));
+}
+
 // Serializes the index to a file using run length encoding
 void index::save(const std::filesystem::path& indexfile) const {
   const std::filesystem::path& path = _root_path / indexfile;
@@ -122,6 +126,10 @@ void index::save(const std::filesystem::path& indexfile) const {
   }
 
   if (!file) throw std::runtime_error("failed writing index: " + path.string() + ": " + std::strerror(errno));
+}
+
+void index::load() {
+  load(std::filesystem::path(".fstree/index"));
 }
 
 // Deserializes the index from a file using run length encoding

@@ -1,3 +1,6 @@
+
+#ifdef FSTREE_ENABLE_JOLT_REMOTE
+
 #include "remote_jolt.hpp"
 
 #include "filesystem.hpp"
@@ -213,3 +216,5 @@ void remote_jolt::has_objects(const std::vector<std::string>& hashes, std::vecto
 }
 
 }  // namespace fstree
+
+#endif // FSTREE_ENABLE_JOLT_REMOTE

@@ -10,6 +10,7 @@
 #include "inode.hpp"
 #include "glob_list.hpp"
 #include "filesystem.hpp"
+#include "simple.hpp"
 
 namespace py = pybind11;
 
@@ -18,6 +19,16 @@ PYBIND11_DECLARE_HOLDER_TYPE(T, fstree::intrusive_ptr<T>);
 
 PYBIND11_MODULE(fstree, m) {
     m.doc() = "Python bindings for fstree - filesystem tree sharing and sync";
+    
+    // Expose the simple API
+    py::class_<fstree::simple>(m, "Simple")
+        .def(py::init<>())
+        .def("write_tree", &fstree::simple::write_tree, py::arg("path"))
+        .def("write_tree_push", &fstree::simple::write_tree_push, py::arg("path"), py::arg("remote_url"))
+        .def("push", &fstree::simple::push, py::arg("tree_hash"), py::arg("remote_url"))
+        .def("pull", &fstree::simple::pull,  py::arg("tree_hash"), py::arg("remote_url"))
+        .def("pull_checkout", &fstree::simple::pull_checkout, py::arg("tree_hash"), py::arg("remote_url"), py::arg("dest_path"))
+        .def("checkout", &fstree::simple::checkout, py::arg("tree_hash"), py::arg("dest_path"));
     
     // Expose the glob_list class
     py::class_<fstree::glob_list>(m, "GlobList")

@@ -53,6 +53,9 @@ class index {
   // remote tree is faster.
   void copy_metadata(fstree::index& index);
 
+  // Loads the index from the default .fstree/index file
+  void load();
+
   // Loads the index from a file
   void load(const std::filesystem::path& file);
 
@@ -64,6 +67,9 @@ class index {
 
   // Refreshes the index by scanning the filesystem
   void refresh();
+
+  // Saves the index to the default .fstree/index file
+  void save() const;
 
   // Saves the index to a file
   void save(const std::filesystem::path& file) const;

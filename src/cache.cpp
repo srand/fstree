@@ -19,6 +19,26 @@ namespace fstree {
 
 std::filesystem::path cache::default_path() { return fstree::cache_path(); }
 
+cache::cache()
+    : _objectdir(default_path() / "objects"),
+      _tmpdir(default_path() / "tmp"),
+      _max_size(default_max_size),
+      _max_size_slice(default_max_size >> 8),
+      _retention_period(default_retention),
+      _lock(default_path() / "objects" / "lock") {
+  std::error_code ec;
+
+  std::filesystem::create_directories(_objectdir, ec);
+  if (ec) {
+    throw std::runtime_error("failed to create cache object directory: " + _objectdir.string() + ": " + ec.message());
+  }
+
+  std::filesystem::create_directories(_tmpdir, ec);
+  if (ec) {
+    throw std::runtime_error("failed to create cache temporary directory: " + _tmpdir.string() + ": " + ec.message());
+  }
+}
+
 cache::cache(const std::filesystem::path& path, size_t max_size, std::chrono::seconds retention_period)
     : _objectdir(path / "objects"),
       _tmpdir(path / "tmp"),

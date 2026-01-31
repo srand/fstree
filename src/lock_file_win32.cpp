@@ -1,4 +1,4 @@
-// File: src/lock_file_posix.cpp
+#ifdef _WIN32
 
 #include "lock_file.hpp"
 
@@ -58,3 +58,5 @@ void lock_file::unlock() {
 }
 
 }  // namespace fstree
+
+#endif  // _WIN32

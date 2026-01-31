@@ -1,3 +1,5 @@
+#ifndef _WIN32
+
 #include "directory_iterator.hpp"
 #include "thread_pool.hpp"
 #include "wait_group.hpp"
@@ -80,7 +82,7 @@ void sorted_directory_iterator::read_directory(
 #endif
 
     // build status bits
-    uint32_t status_bits = st.st_mode & ACCESSPERMS;
+    uint32_t status_bits = st.st_mode & (S_IRWXU|S_IRWXG|S_IRWXO);
     switch ((st.st_mode & S_IFMT)) {
       case S_IFDIR:
         status_bits |= file_status::directory;
@@ -126,3 +128,5 @@ void sorted_directory_iterator::read_directory(
 }
 
 }  // namespace fstree
+
+#endif  // _WIN32

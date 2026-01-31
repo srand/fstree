@@ -7,6 +7,7 @@ project(fstree)
 
 option(fstree_BUILD_TESTS "Build tests" ON)
 option(fstree_ENABLE_HTTP "Enable HTTP remote support" ON)
+option(fstree_ENABLE_JOLT "Enable JOLT remote support" ON)
 set(fstree_HASH_ALGORITHM "blake3" CACHE STRING "Hash algorithm to use (blake3, sha1)")
 
 ################################################################################
@@ -47,7 +48,12 @@ find_package(gRPC CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 if (fstree_ENABLE_HTTP)
     find_package(CURL CONFIG REQUIRED)
+    add_compile_definitions(FSTREE_ENABLE_HTTP_REMOTE)
     message(STATUS "HTTP remote support enabled")
+endif()
+if (fstree_ENABLE_JOLT)
+    add_compile_definitions(FSTREE_ENABLE_JOLT_REMOTE)
+    message(STATUS "JOLT remote support enabled")
 endif()
 if (${fstree_HASH_ALGORITHM} STREQUAL "blake3")
     find_package(blake3 CONFIG REQUIRED)
@@ -100,6 +106,7 @@ else()
 endif()
 
 add_library(fstreelib ${SRCS})
+set_target_properties(fstreelib PROPERTIES OUTPUT_NAME "fstree")
 
 protobuf_generate(
     TARGET
@@ -154,29 +161,37 @@ endif()
 # Build executable
 ################################################################################
 
-add_executable(fstree src/main.cpp)
+add_executable(fstreebin src/main.cpp)
+set_target_properties(fstreebin PROPERTIES OUTPUT_NAME "fstree")
 
 target_link_libraries(
-    fstree
+    fstreebin
     PRIVATE
         fstreelib
         protobuf::libprotobuf
 )
 
-if (CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
-  target_link_options(
-    fstree
-    PRIVATE
-      "-static"
-  )
-endif()
-
+install(
+    TARGETS
+        fstreebin
+    DESTINATION
+        bin
+)
 
 install(
     TARGETS
-        fstree
+        fstreelib
     DESTINATION
-        bin
+        lib
+)
+
+install(
+    DIRECTORY
+        src/
+    DESTINATION
+        include/fstree
+    FILES_MATCHING
+        PATTERN "*.hpp"
 )
 
 ################################################################################

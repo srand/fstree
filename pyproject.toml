@@ -7,8 +7,8 @@ name = "pyfstree"
 version = "0.1.0"
 description = "Python bindings for fstree - filesystem tree sharing and sync"
 readme = "README.rst"
-requires-python = ">=3.7"
-license = "GPL-3.0-or-later"
+requires-python = ">=3.10"
+license = {text = "GPL-3.0-or-later"}
 authors = [
     {name = "Robert Andersson", email = "rbrtandersson@gmail.com"}
 ]
@@ -46,13 +46,25 @@ where = ["."]
 include = ["pyfstree*"]
 
 [tool.cibuildwheel]
-build = ["cp37-*", "cp38-*", "cp39-*", "cp310-*", "cp311-*", "cp312-*"]
+before-build = "bash scripts/build_deps.sh"
+build = [
+    "cp310-manylinux_*", 
+    "cp311-manylinux_*", 
+    "cp312-manylinux_*", 
+    "cp313-manylinux_*", 
+    "cp314-manylinux_*",
+    "cp310-musllinux_*", 
+    "cp311-musllinux_*", 
+    "cp312-musllinux_*", 
+    "cp313-musllinux_*", 
+    "cp314-musllinux_*",
+]
 
-[tool.cibuildwheel.linux]
-before-all = "yum install -y cmake ninja-build"
-
-[tool.cibuildwheel.macos]
-before-all = "brew install cmake ninja"
-
-[tool.cibuildwheel.windows]
-before-all = "choco install cmake ninja"
+# [tool.cibuildwheel.linux]
+# before-all = "yum install -y cmake ninja-build perl"
+#
+# [tool.cibuildwheel.macos]
+# before-all = "brew install cmake ninja perl"
+#
+# [tool.cibuildwheel.windows]
+# before-all = "choco install cmake ninja perl"

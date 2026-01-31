@@ -23,6 +23,8 @@ class cache {
   static constexpr std::chrono::seconds default_retention = std::chrono::hours(1); 
 
  public:
+  cache();
+
   // Constructor
   explicit cache(const std::filesystem::path& path, size_t max_size, std::chrono::seconds retention_period);
 

@@ -1,3 +1,5 @@
+#ifndef _WIN32
+
 #include "filesystem.hpp"
 
 #include <cstring>
@@ -17,7 +19,7 @@ void lstat(const std::filesystem::path& path, stat& status_out) {
     throw std::runtime_error("failed to stat file: " + path.string() + ": " + std::strerror(errno));
   }
 
-  uint32_t status = st.st_mode & ACCESSPERMS;
+  uint32_t status = st.st_mode & (S_IRWXU|S_IRWXG|S_IRWXO);
   switch (st.st_mode & S_IFMT) {
     case S_IFDIR:
       status |= file_status::directory;
@@ -82,3 +84,5 @@ bool touch(const std::filesystem::path& path) {
 }
 
 }  // namespace fstree
+
+#endif  // _WIN32

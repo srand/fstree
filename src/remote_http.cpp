@@ -1,3 +1,4 @@
+#ifdef FSTREE_ENABLE_HTTP_REMOTE
 
 #include "remote_http.hpp"
 
@@ -210,3 +211,5 @@ bool remote_http::head(const std::string& hash) {
 }
 
 }  // namespace fstree
+
+#endif // FSTREE_ENABLE_HTTP_REMOTE

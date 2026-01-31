@@ -1,8 +1,8 @@
+#ifdef _WIN32
+
 #include "directory_iterator.hpp"
 #include "thread_pool.hpp"
 #include "wait_group.hpp"
-
-#include <iostream>
 
 #include <Windows.h>
 
@@ -119,3 +119,5 @@ void sorted_directory_iterator::read_directory(
 }
 
 }  // namespace fstree
+
+#endif  // _WIN32

@@ -7,10 +7,25 @@ from jolt.pkgs import blake3
 from jolt.pkgs import curl
 from jolt.pkgs import grpc
 from jolt.pkgs import googletest
+from jolt.pkgs import ssl
 
 import functools
 import os
 import yaml
+
+
+class Blake3(blake3.Blake3):
+    """ Use static Blake3 library """
+    name = "blake3"
+    options = blake3.Blake3.options + [
+        "CMAKE_POSITION_INDEPENDENT_CODE=ON",
+    ]
+
+
+class VirtualSsl(ssl.VirtualSsl):
+    """ Use static SSL library (shared=False) """
+    name = "virtual/ssl"
+    shared = BooleanParameter(False, "Build shared SSL library")
 
 
 class GoogleTest(googletest.GoogleTest):
@@ -32,24 +47,48 @@ class Fstree(cmake.CMake):
     debug = BooleanParameter(False, "Build with debug info")
     hash = Parameter("blake3", ["blake3", "sha1"], "Hash algorithm to use")
     http = BooleanParameter(True, "Enable HTTP remote support")
+    jolt = BooleanParameter(True, "Enable JOLT remote support")
+    pic = BooleanParameter(False, "Build with position independent code")
     config = "{debug[Debug,Release]}"
-    requires = ["google/test", "grpc"]
-    requires_blake3 = ["blake3"]
-    requires_curl = ["curl"]
+    requires = ["google/test", "grpc:pic={pic}"]
+    requires_blake3 = ["blake3:pic={pic}"]
+    requires_curl = ["curl:pic={pic}"]
     options = [
+        "CMAKE_POSITION_INDEPENDENT_CODE={pic[ON,OFF]}",
         "fstree_HASH_ALGORITHM={hash}",
         "fstree_ENABLE_HTTP={http}",
+        "fstree_ENABLE_JOLT={jolt}",
     ]
 
 
 class PythonBuildEnv(python.PythonEnv):
     name = "py-build"
-    requirements = ["build", "twine"]
+    requirements = ["build", "cibuildwheel", "twine"]
 
 
 class PythonTestEnv(python.PythonEnv):
     name = "py-test"
     requirements = ["pyfstree"]
+
+
+class FstreeDeps(Alias):
+    name = "fstree/deps"
+    requires = [
+        "abseil:pic=true",
+        "blake3:pic=true",
+        "brotli:pic=true",
+        "c-ares:pic=true",
+        "curl:pic=true",
+        "fstree:pic=true",
+        "grpc:pic=true",
+        "openssl",
+        "protobuf:pic=true",
+        "re2:pic=true",
+        "virtual/ssl:pic=true",
+        "virtual/zlib:pic=true",
+        "zlib:pic=true",
+        "zstd:pic=true",
+    ]
 
 
 @git.influence("pyproject.toml")
@@ -60,8 +99,9 @@ class FstreePythonDist(Task):
     requires = ["py-build"]
 
     def run(self, deps, tools):
-        self.builddir = self.tools.builddir()
-        self.tools.run("python3 -m build -o {builddir} --sdist")
+        self.builddir = self.tools.builddir(incremental=True)
+        tools.run("python3 -m build -o {builddir} --sdist")
+        tools.run("cibuildwheel --platform linux --output-dir {builddir} .")
 
     def publish(self, artifact, tools):
         with tools.cwd(self.builddir):
@@ -126,7 +166,6 @@ class Tests(Test):
         """
         self.tools.run("fstree_test")
 
-    @staticmethod
     def runner(func):
 
         @functools.wraps(func)
