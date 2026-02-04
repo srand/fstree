@@ -69,6 +69,7 @@ set(SRCS
     src/argparser.cpp
     src/cache.cpp
     src/commit_ostream.cpp
+    src/digest.cpp
     src/directory_iterator.cpp
     src/event.cpp
     src/glob_list.cpp

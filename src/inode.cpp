@@ -18,7 +18,7 @@ inode::inode(
     time_type mtime,
     size_t size,
     const std::string& target,
-    const std::string& hash)
+    const fstree::digest& hash)
     : _path(path), _hash(hash), _status(status), _last_write_time(mtime), _size(size), _target(target) {}
 
 void inode::add_child(inode::ptr& child) {
@@ -43,9 +43,9 @@ bool inode::is_file() const { return _status.is_regular(); }
 bool inode::is_symlink() const { return _status.is_symlink(); }
 
 // Hash methods
-const std::string& inode::hash() const { return _hash; }
+const fstree::digest& inode::hash() const { return _hash; }
 
-void inode::set_hash(const std::string& hash) { _hash = hash; }
+void inode::set_hash(const fstree::digest& hash) { _hash = hash; }
 
 // Status methods
 file_status inode::status() const { return _status; }
@@ -80,7 +80,7 @@ const inode::ptr& inode::parent() const { return _parent; }
 void inode::set_parent(const inode::ptr& parent) { _parent = parent; }
 
 void inode::set_dirty() {
-  _hash.clear();
+  _hash = digest();
   if (_parent && !_parent->is_dirty()) {
     _parent->set_dirty();
   }
@@ -149,10 +149,10 @@ std::ostream& operator<<(std::ostream& os, const inode& inode) {
     os.write(path.c_str(), path.length());
 
     // Write the hash
-    auto& hash = child->hash();
-    uint64_t hash_length = hash.size();
+    auto hash = child->hash().string();
+    uint64_t hash_length = hash.length();
     os.write(reinterpret_cast<const char*>(&hash_length), sizeof(hash_length));
-    os.write(hash.c_str(), hash.size());
+    os.write(hash.c_str(), hash_length);
 
     // Write the status bits
     uint32_t status_bits = child->status();
@@ -173,7 +173,7 @@ std::ostream& operator<<(std::ostream& os, const inode& inode) {
   }
 
   if (!os) {
-    throw std::runtime_error("failed writing tree: " + inode.hash() + ": " + std::strerror(errno));
+    throw std::runtime_error("failed writing tree: " + inode.hash().string() + ": " + std::strerror(errno));
   }
 
   return os;
@@ -184,18 +184,18 @@ std::istream& operator>>(std::istream& is, inode& inode) {
 
   uint16_t magic;
   is.read(reinterpret_cast<char*>(&magic), sizeof(magic));
-  if (!is) throw std::runtime_error("failed reading tree: " + inode.hash() + ": " + std::strerror(errno));
+  if (!is) throw std::runtime_error("failed reading tree: " + inode.hash().string() + ": " + std::strerror(errno));
 
   if (magic != g_magic) {
-    throw std::runtime_error("failed reading tree: " + inode.hash() + ": invalid magic");
+    throw std::runtime_error("failed reading tree: " + inode.hash().string() + ": invalid magic");
   }
 
   uint16_t version;
   is.read(reinterpret_cast<char*>(&version), sizeof(version));
-  if (!is) throw std::runtime_error("failed reading tree: " + inode.hash() + ": " + std::strerror(errno));
+  if (!is) throw std::runtime_error("failed reading tree: " + inode.hash().string() + ": " + std::strerror(errno));
 
   if (version != g_version) {
-    throw std::runtime_error("failed reading tree: " + inode.hash() + ": unsupported version");
+    throw std::runtime_error("failed reading tree: " + inode.hash().string() + ": unsupported version");
   }
 
   while (is.peek() != EOF) {
@@ -203,26 +203,24 @@ std::istream& operator>>(std::istream& is, inode& inode) {
     std::string path;
     uint64_t path_length;
     is.read(reinterpret_cast<char*>(&path_length), sizeof(path_length));
-    if (!is) throw std::runtime_error("failed reading tree: " + inode.hash() + ": " + std::strerror(errno));
+    if (!is) throw std::runtime_error("failed reading tree: " + inode.hash().string() + ": " + std::strerror(errno));
 
     path.resize(path_length);
     is.read(&path[0], path_length);
-    if (!is) throw std::runtime_error("failed reading tree: " + inode.hash() + ": " + std::strerror(errno));
-
+    if (!is) throw std::runtime_error("failed reading tree: " + inode.hash().string() + ": " + std::strerror(errno));
     // Read the hash
     std::string hash;
     uint64_t hash_length;
     is.read(reinterpret_cast<char*>(&hash_length), sizeof(hash_length));
-    if (!is) throw std::runtime_error("failed reading tree: " + inode.hash() + ": " + std::strerror(errno));
+    if (!is) throw std::runtime_error("failed reading tree: " + inode.hash().string() + ": " + std::strerror(errno));
 
     hash.resize(hash_length);
     is.read(&hash[0], hash_length);
-    if (!is) throw std::runtime_error("failed reading tree: " + inode.hash() + ": " + std::strerror(errno));
-
+    if (!is) throw std::runtime_error("failed reading tree: " + inode.hash().string() + ": " + std::strerror(errno));
     // Read the file status
     uint32_t status_bits;
     is.read(reinterpret_cast<char*>(&status_bits), sizeof(status_bits));
-    if (!is) throw std::runtime_error("failed reading tree: " + inode.hash() + ": " + std::strerror(errno));
+    if (!is) throw std::runtime_error("failed reading tree: " + inode.hash().string() + ": " + std::strerror(errno));
 
     auto status = static_cast<file_status>(status_bits);
 
@@ -235,17 +233,17 @@ std::istream& operator>>(std::istream& is, inode& inode) {
     if (status.is_symlink()) {
       uint64_t target_length;
       is.read(reinterpret_cast<char*>(&target_length), sizeof(target_length));
-      if (!is) throw std::runtime_error("failed reading tree: " + inode.hash() + ": " + std::strerror(errno));
+      if (!is) throw std::runtime_error("failed reading tree: " + inode.hash().string() + ": " + std::strerror(errno));
 
       target.resize(target_length);
       is.read(&target[0], target_length);
-      if (!is) throw std::runtime_error("failed reading tree: " + inode.hash() + ": " + std::strerror(errno));
+      if (!is) throw std::runtime_error("failed reading tree: " + inode.hash().string() + ": " + std::strerror(errno));
     }
 
     std::filesystem::path inode_path = inode.path();
     inode_path /= path;
     auto child = fstree::make_intrusive<fstree::inode>(
-      inode_path.string(), status, inode::time_type(0), 0ul, target, hash);
+      inode_path.string(), status, inode::time_type(0), 0ul, target, fstree::digest::parse(hash));
     inode.add_child(child);
   }
 

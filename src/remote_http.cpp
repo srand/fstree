@@ -65,16 +65,16 @@ remote_http::remote_http(const url& remote_url) : _remote_url(remote_url) { curl
 remote_http::~remote_http() { curl_global_cleanup(); }
 
 // Returns true if the object with the given hash is present in the remote.
-bool remote_http::has_object(const std::string& hash) { return head(hash); }
+bool remote_http::has_object(const fstree::digest& hash) { return head(hash); }
 
 // Returns lists of trees and objects that are missing in the remote.
 // The missing_trees and missing_objects vectors are filled with the hashes of the missing trees and objects.
-void remote_http::has_tree(const std::string&, std::vector<std::string>&, std::vector<std::string>&) {
+void remote_http::has_tree(const fstree::digest&, std::vector<fstree::digest>&, std::vector<fstree::digest>&) {
   throw fstree::unsupported_operation("remote_http::has_tree is not implemented");
 }
 
 // Returns a vector of booleans indicating the presence of objects with the given hashes.
-void remote_http::has_objects(const std::vector<std::string>& hashes, std::vector<bool>& presence) {
+void remote_http::has_objects(const std::vector<fstree::digest>& hashes, std::vector<bool>& presence) {
   presence.clear();
   presence.reserve(hashes.size());
 
@@ -84,8 +84,8 @@ void remote_http::has_objects(const std::vector<std::string>& hashes, std::vecto
 }
 
 // Send the object with the given hash and path to the remote.
-void remote_http::write_object(const std::string& hash, const std::filesystem::path& path) {
-  std::string url = url_path(hash);
+void remote_http::write_object(const fstree::digest& hash, const std::filesystem::path& path) {
+  std::string url = url_path(hash.string());
   CURLHandle curl;
 
   // Open input file
@@ -114,20 +114,20 @@ void remote_http::write_object(const std::string& hash, const std::filesystem::p
   CURLcode res = curl_easy_perform(curl.get());
   infile.close();
   if (res != CURLE_OK) {
-    throw std::runtime_error("failed to upload object: " + hash + ": CURL error: " + curl_easy_strerror(res));
+    throw std::runtime_error("failed to upload object: " + hash.string() + ": CURL error: " + curl_easy_strerror(res));
   }
   long response_code;
   curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &response_code);
   if (response_code != 200 && response_code != 201) {
-    throw std::runtime_error("failed to upload object: " + hash + ": HTTP " + std::to_string(response_code));
+    throw std::runtime_error("failed to upload object: " + hash.string() + ": HTTP " + std::to_string(response_code));
   }
 }
 
 // Read the object with the given hash from the remote and write it to the given path.
 // The temp path is used to store the object temporarily before moving it to the final path.
 void remote_http::read_object(
-    const std::string& hash, const std::filesystem::path& path, const std::filesystem::path& temp) {
-  std::string url = url_path(hash);
+    const fstree::digest& hash, const std::filesystem::path& path, const std::filesystem::path& temp) {
+  std::string url = url_path(hash.string());
   CURLHandle curl;
 
   // Create a temporary file using mkstemp
@@ -148,14 +148,14 @@ void remote_http::read_object(
 
   if (res != CURLE_OK) {
     std::filesystem::remove(temp_path);
-    throw std::runtime_error("failed to download object: " + hash + ": CURL error: " + curl_easy_strerror(res));
+    throw std::runtime_error("failed to download object: " + hash.string() + ": CURL error: " + curl_easy_strerror(res));
   }
 
   long response_code;
   curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &response_code);
   if (response_code != 200) {
     std::filesystem::remove(temp_path);
-    throw std::runtime_error("failed to download object: " + hash + ": HTTP " + std::to_string(response_code));
+    throw std::runtime_error("failed to download object: " + hash.string() + ": HTTP " + std::to_string(response_code));
   }
 
   // Move the temporary file to the final path
@@ -179,9 +179,9 @@ std::string remote_http::url_path(const std::string& hash) {
   return _remote_url.string() + "/" + hash.substr(0, 2) + "/" + hash.substr(2, 6) + "/" + hash.substr(6);
 }
 
-bool remote_http::head(const std::string& hash) {
+bool remote_http::head(const fstree::digest& hash) {
   try {
-    std::string url = url_path(hash);
+    std::string url = url_path(hash.string());
     CURLHandle curl;
 
     curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());

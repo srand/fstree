@@ -129,7 +129,7 @@ void cache::add(fstree::index& index) {
   create_dirtree(index.root());
 }
 
-void cache::read_tree(const std::string& hash, inode::ptr& inode) {
+void cache::read_tree(const fstree::digest& hash, inode::ptr& inode) {
   std::error_code ec;
 
 #ifdef _WIN32
@@ -140,7 +140,7 @@ void cache::read_tree(const std::string& hash, inode::ptr& inode) {
 
   std::filesystem::path object = tree_path(inode);
   if (!std::filesystem::exists(object, ec)) {
-    throw std::runtime_error("tree object not found in local cache: " + hash);
+    throw std::runtime_error("tree object not found in local cache: " + hash.string());
   }
 
   std::ifstream file(object, std::ios::binary);
@@ -151,7 +151,7 @@ void cache::read_tree(const std::string& hash, inode::ptr& inode) {
   file >> *inode;
 }
 
-void cache::index_from_tree(const std::string& hash, fstree::index& index) {
+void cache::index_from_tree(const fstree::digest& hash, fstree::index& index) {
   std::vector<inode::ptr> trees;
   pool& pool = get_pool();
   std::mutex mutex;
@@ -251,7 +251,7 @@ void cache::create_dirtree(inode::ptr& node) {
   fclose(fp);
 
   // Then calculate the hash of the file and move it to the object directory.
-  std::string hash = hashsum_hex_file(tmp);
+  fstree::digest hash = hashsum_hex_file(tmp);
   node->set_hash(hash);
 
   std::filesystem::path object_path = tree_path(node);
@@ -276,41 +276,43 @@ void cache::create_dirtree(inode::ptr& node) {
   }
 }
 
-std::filesystem::path cache::file_path(const std::string& hash) {
-  return _objectdir / hash.substr(0, 2) / (hash.substr(2) + ".file");
+std::filesystem::path cache::file_path(const fstree::digest& hash) {
+  auto hex = hash.hexdigest();
+  return _objectdir / hex.substr(0, 2) / (hex.substr(2) + ".file");
 }
 
 std::filesystem::path cache::file_path(const inode::ptr& inode) { return file_path(inode->hash()); }
 
-std::filesystem::path cache::tree_path(const std::string& hash) {
-  return _objectdir / hash.substr(0, 2) / (hash.substr(2) + ".tree");
+std::filesystem::path cache::tree_path(const fstree::digest& hash) {
+  auto hex = hash.hexdigest();
+  return _objectdir / hex.substr(0, 2) / (hex.substr(2) + ".tree");
 }
 
 std::filesystem::path cache::tree_path(const inode::ptr& inode) { return tree_path(inode->hash()); }
 
-void cache::pull_object(fstree::remote& remote, const std::string& hash) {
+void cache::pull_object(fstree::remote& remote, const fstree::digest& hash) {
 #ifdef _WIN32
   auto lock = _lock.lock();
 #endif
   if (!has_object(hash)) {
-    event("cache::pull_object", hash);
+    event("cache::pull_object", hash.string());
     std::filesystem::path object_path = file_path(hash);
     remote.read_object(hash, object_path, _tmpdir);
   }
 }
 
-void cache::pull_tree(fstree::remote& remote, const std::string& hash) {
+void cache::pull_tree(fstree::remote& remote, const fstree::digest& hash) {
 #ifdef _WIN32
   auto lock = _lock.lock();
 #endif
   if (!has_tree(hash)) {
-    event("cache::pull_tree", hash);
+    event("cache::pull_tree", hash.string());
     std::filesystem::path object_path = tree_path(hash);
     remote.read_object(hash, object_path, _tmpdir);
   }
 }
 
-bool cache::has_object(const std::string& hash) {
+bool cache::has_object(const fstree::digest& hash) {
   std::filesystem::path object = file_path(hash);
   // Check if the object exists and is a regular file
   // by opening it for reading. This modifies the
@@ -320,7 +322,7 @@ bool cache::has_object(const std::string& hash) {
   return fstree::touch(object);
 }
 
-bool cache::has_tree(const std::string& hash) {
+bool cache::has_tree(const fstree::digest& hash) {
   std::filesystem::path object = tree_path(hash);
   // Check if the object exists and is a regular file
   // by opening it for reading. This modifies the
@@ -330,30 +332,30 @@ bool cache::has_tree(const std::string& hash) {
   return fstree::touch(object);
 }
 
-void cache::copy_file(const std::string& hash, const std::filesystem::path& to) {
+void cache::copy_file(const fstree::digest& hash, const std::filesystem::path& to) {
   std::filesystem::copy_file(file_path(hash), to, std::filesystem::copy_options::overwrite_existing);
 }
 
-void cache::push_object(fstree::remote& remote, const std::string& hash) {
-  event("cache::push_object", hash);
+void cache::push_object(fstree::remote& remote, const fstree::digest& hash) {
+  event("cache::push_object", hash.string());
   std::filesystem::path object_path = file_path(hash);
   remote.write_object(hash, object_path);
 }
 
-void cache::push_tree(fstree::remote& remote, const std::string& hash) {
-  event("cache::push_tree", hash);
+void cache::push_tree(fstree::remote& remote, const fstree::digest& hash) {
+  event("cache::push_tree", hash.string());
   std::filesystem::path object_path = tree_path(hash);
   remote.write_object(hash, object_path);
 }
 
 void cache::push(const fstree::index& index, fstree::remote& remote) {
-  event("cache::push", index.root()->hash(), index.size());
+  event("cache::push", index.root()->hash().string(), index.size());
 
   pool& pool = get_pool();
   wait_group wg;
 
   // List of trees to check for presence in the remote
-  std::vector<std::string> check_trees;
+  std::vector<fstree::digest> check_trees;
 
   // Mutex to protect the check_trees list when adding new trees
   std::mutex check_trees_mutex;
@@ -363,10 +365,10 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
 
   do {
     // Lists of missing child trees and objects for the checked tree
-    std::vector<std::string> missing_trees, missing_objects;
+    std::vector<fstree::digest> missing_trees, missing_objects;
 
     // Pop the last tree from the list to check
-    std::string tree_hash;
+    fstree::digest tree_hash;
     {
       std::lock_guard<std::mutex> lock(check_trees_mutex);
       tree_hash = check_trees.back();
@@ -402,7 +404,7 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
 
     // Write missing objects in parallel
     for (const auto& hash : missing_objects) {
-      event("cache::remote_missing_object", hash);
+      event("cache::remote_missing_object", hash.string());
 
       wg.add(1);
       pool.enqueue([this, &wg, &remote, hash]() {
@@ -418,7 +420,7 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
 
     // Write missing trees in parallel
     for (const auto& hash : missing_trees) {
-      event("cache::remote_missing_tree", hash);
+      event("cache::remote_missing_tree", hash.string());
 
       wg.add(1);
       pool.enqueue([this, &check_trees, &check_trees_mutex, &wg, &remote, hash]() {
@@ -448,8 +450,8 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
   } while (!check_trees.empty());
 }
 
-void cache::pull(fstree::index& index, fstree::remote& remote, const std::string& tree_hash) {
-  event("cache::pull", tree_hash, index.size());
+void cache::pull(fstree::index& index, fstree::remote& remote, const fstree::digest& tree_hash) {
+  event("cache::pull", tree_hash.string(), index.size());
 
   pool& pool = get_pool();
   wait_group wg;
@@ -589,7 +591,7 @@ void cache::evict_subdir(const std::filesystem::path& dir) {
     std::error_code ec;
     std::filesystem::remove(dir / inode->path(), ec);
     if (ec) {
-      throw std::runtime_error("failed to remove cache object: " + inode->hash() + ": " + ec.message());
+      throw std::runtime_error("failed to remove cache object: " + inode->hash().string() + ": " + ec.message());
     }
 
     size -= inode->size();

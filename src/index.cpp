@@ -104,9 +104,10 @@ void index::save(const std::filesystem::path& indexfile) const {
     file.write(inode->path().c_str(), inode->path().length());
 
     // Write the hash
-    size_t hash_length = inode->hash().size();
+    std::string hash = inode->hash().string();
+    size_t hash_length = hash.size();
     file.write(reinterpret_cast<const char*>(&hash_length), sizeof(hash_length));
-    file.write(inode->hash().c_str(), inode->hash().size());
+    file.write(hash.c_str(), hash.size());
 
     // Write status bits
     uint32_t status_bits = inode->status();
@@ -195,7 +196,7 @@ void index::load(const std::filesystem::path& indexfile) {
       if (!file) throw std::runtime_error("failed reading index: " + index_path.string() + ": " + std::strerror(errno));
     }
 
-    push_back(fstree::make_intrusive<fstree::inode>(path, status, mtime, 0, target, hash));
+    push_back(fstree::make_intrusive<fstree::inode>(path, status, mtime, 0, target, fstree::digest::parse(hash)));
   }
 }
 
@@ -500,7 +501,7 @@ void index::refresh() {
       // Check if hash can be reused from index
       // It's reused if the inodes have the same metadata.
       // The hash length must also match the current algorithm's hash length.
-      if ((*index_it)->hash().length() != fstree::hash_digest_len) {
+      if ((*index_it)->hash().alg() != fstree::hash_function || (*index_it)->hash().hexdigest().size() != fstree::hash_digest_length) {
         (*tree_it)->set_dirty();
       }
       else if ((*index_it)->is_equivalent(*tree_it)) {

@@ -11,6 +11,7 @@
 #include <chrono>
 #include <filesystem>
 #include <iomanip>
+#include <ios>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -141,7 +142,7 @@ int cmd_fstree(const fstree::argparser& args) {
   if (args[0] == "checkout") {
     if (args.size() < 2) throw std::invalid_argument("missing tree argument");
 
-    std::string tree = args[1];
+    fstree::digest tree = fstree::digest::parse(args[1]);
     if (tree.empty()) throw std::invalid_argument("missing tree argument");
 
     std::filesystem::path workspace = args.size() > 2 ? args.get_value_path(2) : current_path();
@@ -184,18 +185,18 @@ int cmd_fstree(const fstree::argparser& args) {
     for (const auto& inode : index) {
       auto mtime = std::chrono::nanoseconds(inode->last_write_time());
       if (inode->is_symlink())
-        std::cout << std::setw(fstree::hash_digest_len) << inode->hash() << " " << inode->status().str() << " "
-                  << rfc3339(mtime) << " " << inode->path() << " -> " << inode->target() << std::endl;
+        std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " " << inode->status().str() << " " << rfc3339(mtime) << " "
+                  << inode->path() << " -> " << inode->target() << std::endl;
       else
-        std::cout << std::setw(fstree::hash_digest_len) << inode->hash() << " " << inode->status().str() << " "
-                  << rfc3339(mtime) << " " << inode->path() << std::endl;
+        std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " " << inode->status().str() << " " << rfc3339(mtime) << " "
+                  << inode->path() << std::endl;
     }
 
     return EXIT_SUCCESS;
   }
   else if (args[0] == "ls-tree") {
     if (args.size() < 2) throw std::invalid_argument("missing tree argument");
-    std::string tree = args[1];
+    fstree::digest tree = fstree::digest::parse(args[1]);
     if (tree.empty()) throw std::invalid_argument("missing tree argument");
 
     fstree::inode::ptr root = fstree::make_intrusive<fstree::inode>();
@@ -203,11 +204,11 @@ int cmd_fstree(const fstree::argparser& args) {
 
     for (const auto& inode : *root) {
       if (inode->is_symlink())
-        std::cout << std::setw(fstree::hash_digest_len) << inode->hash() << " " << inode->status().str() << " "
-                  << inode->path() << " -> " << inode->target() << std::endl;
+        std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " " << inode->status().str() << " " << inode->path() << " -> "
+                  << inode->target() << std::endl;
       else
-        std::cout << std::setw(fstree::hash_digest_len) << inode->hash() << " " << inode->status().str() << " "
-                  << inode->path() << std::endl;
+        std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " " << inode->status().str() << " " << inode->path()
+                  << std::endl;
     }
 
     root->clear();
@@ -218,7 +219,7 @@ int cmd_fstree(const fstree::argparser& args) {
 
     if (args.size() < 2) throw std::invalid_argument("missing tree argument");
 
-    std::string tree = args[1];
+    fstree::digest tree = fstree::digest::parse(args[1]);
     if (tree.empty()) throw std::invalid_argument("missing tree argument");
 
     std::unique_ptr<fstree::remote> remote = fstree::remote::create(remoteurl);
@@ -238,7 +239,7 @@ int cmd_fstree(const fstree::argparser& args) {
     // Pulls a tree from a remote cache and checks it out
     if (args.size() < 2) throw std::invalid_argument("missing tree argument");
 
-    std::string tree = args[1];
+    fstree::digest tree = fstree::digest::parse(args[1]);
     if (tree.empty()) throw std::invalid_argument("missing tree argument");
 
     std::filesystem::path workspace = args.size() > 2 ? args.get_value_path(2) : current_path();
@@ -274,7 +275,7 @@ int cmd_fstree(const fstree::argparser& args) {
   else if (args[0] == "push") {
     if (args.size() < 2) throw std::invalid_argument("missing tree argument");
 
-    std::string tree = args[1];
+    fstree::digest tree = fstree::digest::parse(args[1]);
     if (tree.empty()) throw std::invalid_argument("missing tree argument");
 
     std::unique_ptr<fstree::remote> remote = fstree::remote::create(remoteurl);

@@ -20,7 +20,7 @@ std::string simple::write_tree(const std::string& path) {
     _cache.add(index);
     index.save();
 
-    return index.root()->hash();
+    return index.root()->hash().string();
 }
 
 std::string simple::write_tree_push(const std::string& path, const std::string& remote_url) {
@@ -39,33 +39,33 @@ std::string simple::write_tree_push(const std::string& path, const std::string& 
 
     index.save();
 
-    return index.root()->hash();
+    return index.root()->hash().string();
 }
 
 void simple::push(const std::string& tree_hash, const std::string& remote_url) {
     std::unique_ptr<fstree::remote> remote = fstree::remote::create(url(remote_url));
     fstree::index index;
-    _cache.index_from_tree(tree_hash, index);
+    _cache.index_from_tree(fstree::digest::parse(tree_hash), index);
     _cache.push(index, *remote);
 }
 
 void simple::pull(const std::string& tree_hash, const std::string& remote_url) {
     std::unique_ptr<fstree::remote> remote = fstree::remote::create(url(remote_url));
     fstree::index index;
-    _cache.pull(index, *remote, tree_hash);
+    _cache.pull(index, *remote, fstree::digest::parse(tree_hash));
 }
 
 void simple::pull_checkout(const std::string& tree_hash, const std::string& remote_url, const std::string& dest_path) {
     std::unique_ptr<fstree::remote> remote = fstree::remote::create(url(remote_url));
     fstree::index index;
-    _cache.pull(index, *remote, tree_hash);
+    _cache.pull(index, *remote, fstree::digest::parse(tree_hash));
     index.checkout(_cache, std::filesystem::path(dest_path));
     index.save();
 }
 
 void simple::checkout(const std::string& tree_hash, const std::string& dest_path) {
     fstree::index index;
-    _cache.index_from_tree(tree_hash, index);
+    _cache.index_from_tree(fstree::digest::parse(tree_hash), index);
     index.checkout(_cache, std::filesystem::path(dest_path));
     index.save();
 }

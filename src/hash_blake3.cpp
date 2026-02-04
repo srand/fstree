@@ -12,7 +12,7 @@
 namespace fstree {
 
 // Calculate the hash sum of a stream. The stream is read until EOF.
-std::string hashsum_hex(std::istream& stream) {
+fstree::digest hashsum_hex(std::istream& stream) {
   // Initialize the hasher.
   blake3_hasher hasher;
   blake3_hasher_init(&hasher);
@@ -39,11 +39,11 @@ std::string hashsum_hex(std::istream& stream) {
   for (size_t i = 0; i < BLAKE3_OUT_LEN; i++) {
     oss << std::setw(2) << static_cast<int>(hash_output[i]);
   }
-  return oss.str();
+  return digest(digest::algorithm::blake3, oss.str());
 }
 
 // Calculate the hash sum of a file. The file is read until EOF.
-std::string hashsum_hex_file(const std::filesystem::path& path) {
+fstree::digest hashsum_hex_file(const std::filesystem::path& path) {
     std::ifstream file(path, std::ios::binary);
     if (!file) {
         throw std::runtime_error("failed to open file: " + path.string() + ": " + std::strerror(errno));

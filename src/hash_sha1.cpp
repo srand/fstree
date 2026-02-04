@@ -3,6 +3,8 @@
 // Based on the implementation in the Git source code
 //
 
+#include "hash.hpp"
+
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -15,7 +17,7 @@
 namespace fstree {
 
 // Calculate the hash sum of a stream
-std::string hashsum_hex(std::istream& stream) {
+fstree::digest hashsum_hex(std::istream& stream) {
   // Read file contents
   std::vector<unsigned char> buffer(std::istreambuf_iterator<char>(stream), {});
 
@@ -97,11 +99,11 @@ std::string hashsum_hex(std::istream& stream) {
   oss << std::hex << std::setfill('0');
   oss << std::setw(8) << h0 << std::setw(8) << h1 << std::setw(8) << h2 << std::setw(8) << h3 << std::setw(8) << h4;
 
-  return oss.str();
+  return digest(digest::algorithm::sha1, oss.str());
 }
 
 // Calculate the hash sum of a file
-std::string hashsum_hex_file(const std::filesystem::path& path) {
+fstree::digest hashsum_hex_file(const std::filesystem::path& path) {
   std::ifstream file(path, std::ios::binary);
   if (!file) {
     throw std::runtime_error("failed to open file: " + path.string() + ": " + std::strerror(errno));

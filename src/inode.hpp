@@ -1,5 +1,6 @@
 #pragma once
 
+#include "digest.hpp"
 #include "intrusive_ptr.hpp"
 #include "status.hpp"
 
@@ -27,7 +28,7 @@ class inode : public intrusive_ptr_base<inode> {
       time_type mtime,
       size_t size,
       const std::string& target,
-      const std::string& hash = "");
+      const fstree::digest& hash = fstree::digest());
 
   void add_child(inode::ptr& child);
 
@@ -53,10 +54,10 @@ class inode : public intrusive_ptr_base<inode> {
   bool is_symlink() const;
 
   // Returns the sha1 hash of the file
-  const std::string& hash() const;
+  const fstree::digest& hash() const;
 
   // Sets the sha1 hash of the file
-  void set_hash(const std::string& hash);
+  void set_hash(const fstree::digest& hash);
 
   // Return the file status, which includes the type and permissions
   file_status status() const;
@@ -116,7 +117,7 @@ class inode : public intrusive_ptr_base<inode> {
   std::string _path;
 
   // The hash of the file
-  std::string _hash;
+  fstree::digest _hash;
 
   // The permissions of the file
   file_status _status;

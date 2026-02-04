@@ -1,4 +1,3 @@
-
 #ifdef FSTREE_ENABLE_JOLT_REMOTE
 
 #include "remote_jolt.hpp"
@@ -46,13 +45,13 @@ remote_jolt::remote_jolt(const url& address) {
   _client = fstree::CacheService::NewStub(_channel);
 }
 
-void remote_jolt::write_object(const std::string& hash, const std::filesystem::path& path) {
+void remote_jolt::write_object(const fstree::digest& hash, const std::filesystem::path& path) {
   // Set up gRPC client
   grpc::ClientContext context;
 
   // Create a blob write request message
   fstree::WriteObjectRequest request;
-  request.set_digest(hash_name + ":" + hash);
+  request.set_digest(hash.string());
 
   // Create a blob write response message
   fstree::WriteObjectResponse response;
@@ -91,13 +90,13 @@ void remote_jolt::write_object(const std::string& hash, const std::filesystem::p
 }
 
 void remote_jolt::read_object(
-    const std::string& hash, const std::filesystem::path& path, const std::filesystem::path& temp) {
+    const fstree::digest& hash, const std::filesystem::path& path, const std::filesystem::path& temp) {
   // Set up gRPC client
   grpc::ClientContext context;
 
   // Create a blob read request message
   fstree::ReadObjectRequest request;
-  request.set_digest(hash_name + ":" + hash);
+  request.set_digest(hash.string());
 
   // Create a blob read response message
   fstree::ReadObjectResponse response;
@@ -127,7 +126,7 @@ void remote_jolt::read_object(
   if (!status.ok()) {
     fclose(file);
     std::filesystem::remove(temp_path);
-    throw std::runtime_error("failed to read cache object: " + hash + ": " + status.error_message());
+    throw std::runtime_error("failed to read cache object: " + hash.string() + ": " + status.error_message());
   }
 
   fclose(file);
@@ -151,13 +150,13 @@ void remote_jolt::read_object(
 }
 
 void remote_jolt::has_tree(
-    const std::string& hash, std::vector<std::string>& missing_trees, std::vector<std::string>& missing_objects) {
+    const fstree::digest& hash, std::vector<fstree::digest>& missing_trees, std::vector<fstree::digest>& missing_objects) {
   // Set up gRPC client
   grpc::ClientContext context;
 
   // Create a HasTree request message
   fstree::HasTreeRequest request;
-  request.add_digest(hash_name + ":" + hash);
+  request.add_digest(hash.string());
 
   // Create a response message
   fstree::HasTreeResponse response;
@@ -169,10 +168,10 @@ void remote_jolt::has_tree(
   while (server->Read(&response)) {
     // Copy the missing trees and objects vectors
     for (int i = 0; i < response.missing_trees_size(); i++) {
-      missing_trees.push_back(response.missing_trees(i));
+      missing_trees.push_back(fstree::digest::parse(response.missing_trees(i)));
     }
     for (int i = 0; i < response.missing_objects_size(); i++) {
-      missing_objects.push_back(response.missing_objects(i));
+      missing_objects.push_back(fstree::digest::parse(response.missing_objects(i)));
     }
   }
 
@@ -182,22 +181,22 @@ void remote_jolt::has_tree(
   }
 }
 
-bool remote_jolt::has_object(const std::string& hash) {
+bool remote_jolt::has_object(const fstree::digest& hash) {
   // call has_objects with a vector of one hash
-  std::vector<std::string> hashes = {hash};
+  std::vector<fstree::digest> hashes = {hash};
   std::vector<bool> presence;
   has_objects(hashes, presence);
   return presence[0];
 }
 
-void remote_jolt::has_objects(const std::vector<std::string>& hashes, std::vector<bool>& presence) {
+void remote_jolt::has_objects(const std::vector<fstree::digest>& hashes, std::vector<bool>& presence) {
   // Set up gRPC client
   grpc::ClientContext context;
 
   // Create a blob has request message
   fstree::HasObjectRequest request;
   for (const auto& hash : hashes) {
-    request.add_digest(hash_name + ":" + hash);
+    request.add_digest(hash.string());
   }
 
   // Create a blob has response message

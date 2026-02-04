@@ -17,15 +17,14 @@ class remote_jolt : public remote {
   explicit remote_jolt(const url& address);
 
   void has_tree(
-      const std::string& hash,
-      std::vector<std::string>& missing_trees,
-      std::vector<std::string>& missing_objects) override;
-  bool has_object(const std::string& hash) override;
-  void has_objects(const std::vector<std::string>& hashes, std::vector<bool>& presence) override;
-
-  void write_object(const std::string& hash, const std::filesystem::path& path) override;
+      const fstree::digest& hash,
+      std::vector<fstree::digest>& missing_trees,
+      std::vector<fstree::digest>& missing_objects) override;
+  bool has_object(const fstree::digest& hash) override;
+  void has_objects(const std::vector<fstree::digest>& hashes, std::vector<bool>& presence) override;
+  void write_object(const fstree::digest& hash, const std::filesystem::path& path) override;
   void read_object(
-      const std::string& hash, const std::filesystem::path& path, const std::filesystem::path& temp) override;
+      const fstree::digest& hash, const std::filesystem::path& path, const std::filesystem::path& temp) override;
 };
 
 }  // namespace fstree
