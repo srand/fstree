@@ -48,8 +48,6 @@ jobs:
       if: matrix.os == 'windows-latest'
     - name: Create version header
       run: python scripts/version.py ${{ github.run_number}}
-    - name: Build grpc
-      run: python -m jolt -c jolt.cachedir=${{ github.workspace }}/cache build grpc
     - name: Build fstree
       run: python -m jolt -c jolt.cachedir=${{ github.workspace }}/cache build fstree -c output
     - name: Test package
