@@ -1,6 +1,7 @@
 .fstree
 .jolt
 .vscode
+*.egg-info
 __pycache__
 artifacts
 build
