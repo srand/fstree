@@ -28,7 +28,15 @@ PYBIND11_MODULE(fstree, m) {
         .def("push", &fstree::simple::push, py::arg("tree_hash"), py::arg("remote_url"))
         .def("pull", &fstree::simple::pull,  py::arg("tree_hash"), py::arg("remote_url"))
         .def("pull_checkout", &fstree::simple::pull_checkout, py::arg("tree_hash"), py::arg("remote_url"), py::arg("dest_path"))
-        .def("checkout", &fstree::simple::checkout, py::arg("tree_hash"), py::arg("dest_path"));
+        .def("checkout", &fstree::simple::checkout, py::arg("tree_hash"), py::arg("dest_path"))
+        .def("lookup", [](fstree::simple &s, const std::string& path) -> py::object {
+            std::string hash;
+            if (!s.lookup(path, hash)) {
+                // Return None if path not found in index
+                return py::none();
+            }
+            return py::str(hash);
+        }, py::arg("path"));
     
     // Expose the glob_list class
     py::class_<fstree::glob_list>(m, "GlobList")

@@ -1,7 +1,8 @@
 #pragma once 
 
-#include "url.hpp"
 #include "cache.hpp"
+#include "index.hpp"
+#include "url.hpp"
 
 #include <filesystem>
 #include <string>
@@ -20,9 +21,11 @@ public:
     void pull(const std::string& tree_hash, const std::string& remote_url);
     void pull_checkout(const std::string& tree_hash, const std::string& remote_url, const std::string& dest_path);
     void checkout(const std::string& tree_hash, const std::string& dest_path);
+    bool lookup(const std::string& path, std::string& _hash);
 
 private:
     cache _cache;
+    index _index;
 };
 
 } // namespace fstree

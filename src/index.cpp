@@ -449,6 +449,15 @@ void index::load_ignore_from_index(fstree::cache& cache, const std::filesystem::
   }
 }
 
+bool index::lookup(const std::filesystem::path& path, fstree::digest& hash) {
+  inode::ptr node = find_node_by_path(path);
+  if (node) {
+    hash = node->hash();
+    return true;
+  }
+  return false;
+}
+
 void index::refresh() {
   event("index::refresh", _root_path.string());
 

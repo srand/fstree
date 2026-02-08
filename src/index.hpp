@@ -62,6 +62,9 @@ class index {
   // Load the ignore file from the index
   void load_ignore_from_index(fstree::cache& cache, const std::filesystem::path& path);
 
+  // Looks up the hash of the inode at the given path in the index.
+  bool lookup(const std::filesystem::path& path, fstree::digest& hash);
+
   // Adds an inode to the index
   void push_back(inode::ptr inode);
 
