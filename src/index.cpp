@@ -19,18 +19,18 @@ static const uint16_t magic = 0x3ee3;
 static const uint16_t version = 1;
 
 // Constructor implementations
-index::index() 
-  : _root(fstree::make_intrusive<fstree::inode>()) 
+index::index()
+  : _root(fstree::make_intrusive<fstree::inode>())
 {}
 
-index::index(const std::filesystem::path& root) 
+index::index(const std::filesystem::path& root)
   : _root_path(root), _root(fstree::make_intrusive<fstree::inode>())
 {}
 
-index::index(const std::filesystem::path& root, const glob_list& ignore) 
+index::index(const std::filesystem::path& root, const glob_list& ignore)
   : _ignore(ignore)
   , _root_path(root)
-  , _root(fstree::make_intrusive<fstree::inode>()) 
+  , _root(fstree::make_intrusive<fstree::inode>())
 {}
 
 index::~index() {
@@ -431,7 +431,7 @@ void index::checkout_node(fstree::cache& c, inode::ptr node, const std::filesyst
   node->set_status(st.status);
 }
 
-inode::ptr index::find_node_by_path(const std::filesystem::path& path) {
+inode::ptr index::find_node_by_path(const std::filesystem::path& path) const {
   auto it = std::lower_bound(_inodes.begin(), _inodes.end(), path.string(), [](const inode::ptr& a, const std::string& b) {
     return a->path() < b;
   });
@@ -465,7 +465,7 @@ void index::refresh() {
   // However, we want to preserve hashes from the index where possible to avoid
   // re-hashing unchanged files.
 
-  // Note that the index tree may be incomplete and lacks parent/child 
+  // Note that the index tree may be incomplete and lacks parent/child
   // relationships. We can only rely on the list of inodes in the index.
 
   // Scan the filesystem tree
@@ -526,6 +526,148 @@ void index::refresh() {
 
   // Replace root node
   _root = std::move(tree.root());
+}
+
+void index::merge(const fstree::index& other) {
+  // Create a new root node for the merged tree
+  inode::ptr new_root = fstree::make_intrusive<fstree::inode>();
+
+  // Clear current inodes and rebuild from scratch
+  std::vector<inode::ptr> old_inodes(std::move(_inodes));
+
+  // Start recursive merge from root level
+  merge_recursive(new_root, "", old_inodes, other._inodes);
+
+  // Update the root
+  _root = new_root;
+}
+
+void index::merge_recursive(inode::ptr& parent, const std::string& parent_path,
+                           const std::vector<inode::ptr>& current_nodes,
+                           const std::vector<inode::ptr>& other_nodes) {
+  // Find all direct children of the current parent_path
+  std::vector<inode::ptr> current_children;
+  std::vector<inode::ptr> other_children;
+
+  // Collect direct children from current index
+  for (const auto& node : current_nodes) {
+    std::filesystem::path node_fs_path(node->path());
+    std::filesystem::path node_parent_path = node_fs_path.parent_path();
+
+    if ((parent_path.empty() && (node_parent_path.empty() || node_parent_path == ".")) ||
+        (!parent_path.empty() && node_parent_path == parent_path)) {
+      current_children.push_back(node);
+    }
+  }
+
+  // Collect direct children from other index
+  for (const auto& node : other_nodes) {
+    std::filesystem::path node_fs_path(node->path());
+    std::filesystem::path node_parent_path = node_fs_path.parent_path();
+
+    if ((parent_path.empty() && (node_parent_path.empty() || node_parent_path == ".")) ||
+        (!parent_path.empty() && node_parent_path == parent_path)) {
+      other_children.push_back(node);
+    }
+  }
+
+  // Merge the children using the same logic as before
+  auto current_it = current_children.begin();
+  auto current_end = current_children.end();
+  auto other_it = other_children.begin();
+  auto other_end = other_children.end();
+
+  while (current_it != current_end || other_it != other_end) {
+    inode::ptr new_node;
+
+    if (current_it == current_end) {
+      // No more nodes in current - add remaining from other
+      for (; other_it != other_end; ++other_it) {
+        new_node = clone_node(*other_it);
+        parent->add_child(new_node);
+        new_node->set_parent(parent);
+        _inodes.push_back(new_node);
+
+        // Recursively merge if this is a directory
+        if (new_node->is_directory()) {
+          merge_recursive(new_node, new_node->path(), current_nodes, other_nodes);
+        }
+      }
+      break;
+    }
+    else if (other_it == other_end) {
+      // No more nodes in other - clone remaining from current
+      for (; current_it != current_end; ++current_it) {
+        new_node = clone_node(*current_it);
+        parent->add_child(new_node);
+        new_node->set_parent(parent);
+        _inodes.push_back(new_node);
+
+        // Recursively merge if this is a directory
+        if (new_node->is_directory()) {
+          merge_recursive(new_node, new_node->path(), current_nodes, other_nodes);
+        }
+      }
+      break;
+    }
+    else if ((*current_it)->path() < (*other_it)->path()) {
+      // Node exists only in current - clone it
+      new_node = clone_node(*current_it);
+      parent->add_child(new_node);
+      new_node->set_parent(parent);
+      _inodes.push_back(new_node);
+
+      // Recursively merge if this is a directory
+      if (new_node->is_directory()) {
+        merge_recursive(new_node, new_node->path(), current_nodes, other_nodes);
+      }
+      ++current_it;
+    }
+    else if ((*current_it)->path() > (*other_it)->path()) {
+      // Node exists only in other - clone it
+      new_node = clone_node(*other_it);
+      parent->add_child(new_node);
+      new_node->set_parent(parent);
+      _inodes.push_back(new_node);
+
+      // Recursively merge if this is a directory
+      if (new_node->is_directory()) {
+        merge_recursive(new_node, new_node->path(), current_nodes, other_nodes);
+      }
+      ++other_it;
+    }
+    else {
+      // Node exists in both - prefer other
+      new_node = clone_node(*other_it);
+      parent->add_child(new_node);
+      new_node->set_parent(parent);
+      _inodes.push_back(new_node);
+
+      // Recursively merge if this is a directory
+      if (new_node->is_directory()) {
+        merge_recursive(new_node, new_node->path(), current_nodes, other_nodes);
+      }
+      ++current_it;
+      ++other_it;
+    }
+  }
+
+  // Sort children after all have been added
+  parent->sort();
+}
+
+inode::ptr index::clone_node(const inode::ptr& source) {
+  // Create a new inode with the same properties as the source
+  inode::ptr new_node = fstree::make_intrusive<fstree::inode>(
+    source->path(),
+    source->status(),
+    source->last_write_time(),
+    source->size(),
+    source->target(),
+    source->hash()
+  );
+
+  return new_node;
 }
 
 } // namespace fstree

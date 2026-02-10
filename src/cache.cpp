@@ -162,12 +162,11 @@ void cache::index_from_tree(const fstree::digest& hash, fstree::index& index) {
   index.root()->set_status(fstree::file_status(fs::file_type::directory, fs::perms::none));
   trees.push_back(index.root());
 
-  // Check if trees are present locally, otherwise pull the tree from the remote.
-  // Pull all objects in parallel.
+  // Recursively read tree objects in parallel
   while (!trees.empty()) {
     std::vector<inode::ptr> new_trees;
 
-    // Pull all discovered trees in parallel
+    // For each tree, read its content and add child directories to the list of trees to read.
     for (auto& tree : trees) {
       wg.add(1);
       pool.enqueue([this, &index, &mutex, &wg, &tree, &new_trees]() {

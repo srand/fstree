@@ -19,25 +19,27 @@ PYBIND11_DECLARE_HOLDER_TYPE(T, fstree::intrusive_ptr<T>);
 
 PYBIND11_MODULE(fstree, m) {
     m.doc() = "Python bindings for fstree - filesystem tree sharing and sync";
-    
+
     // Expose the simple API
     py::class_<fstree::simple>(m, "Simple")
         .def(py::init<>())
-        .def("write_tree", &fstree::simple::write_tree, py::arg("path"))
-        .def("write_tree_push", &fstree::simple::write_tree_push, py::arg("path"), py::arg("remote_url"))
-        .def("push", &fstree::simple::push, py::arg("tree_hash"), py::arg("remote_url"))
-        .def("pull", &fstree::simple::pull,  py::arg("tree_hash"), py::arg("remote_url"))
-        .def("pull_checkout", &fstree::simple::pull_checkout, py::arg("tree_hash"), py::arg("remote_url"), py::arg("dest_path"))
-        .def("checkout", &fstree::simple::checkout, py::arg("tree_hash"), py::arg("dest_path"))
-        .def("lookup", [](fstree::simple &s, const std::string& path) -> py::object {
-            std::string hash;
-            if (!s.lookup(path, hash)) {
-                // Return None if path not found in index
-                return py::none();
+        .def("__iter__", [](const fstree::simple &s) {
+            return py::make_iterator(s.begin(), s.end());
+        }, py::keep_alive<0, 1>())
+        .def("__getitem__", [](const fstree::simple &s, const std::string& path) {
+            auto ptr = s.lookup(path);
+            if (!ptr) {
+                throw std::runtime_error("path not found in index: " + path);
             }
-            return py::str(hash);
-        }, py::arg("path"));
-    
+            return *ptr;
+        })
+        .def("checkout", &fstree::simple::checkout, py::arg("dest_path"))
+        .def("pull", &fstree::simple::pull,  py::arg("tree_hash"), py::arg("remote_url"))
+        .def("push", &fstree::simple::push, py::arg("remote_url"))
+        .def("write_tree", py::overload_cast<const std::string&>(&fstree::simple::write_tree), py::arg("path"))
+        .def("write_tree", py::overload_cast<const std::vector<std::string>&>(&fstree::simple::write_tree), py::arg("paths"))
+        ;
+
     // Expose the glob_list class
     py::class_<fstree::glob_list>(m, "GlobList")
         .def(py::init<>())
@@ -80,7 +82,7 @@ PYBIND11_MODULE(fstree, m) {
             if (hash.empty()) {
                 throw std::runtime_error("inode has not been cached yet");
             }
-            return hash;
+            return hash.string();
         })
         .def_property_readonly("is_directory", &fstree::inode::is_directory)
         .def_property_readonly("is_dirty", &fstree::inode::is_dirty)
@@ -95,7 +97,7 @@ PYBIND11_MODULE(fstree, m) {
         .def("__iter__", [](fstree::inode &node) {
             return py::make_iterator(node.begin(), node.end());
         }, py::keep_alive<0, 1>());
-    
+
     // Expose the index class
     py::class_<fstree::index>(m, "Index")
         .def(py::init([]() {
@@ -130,7 +132,7 @@ PYBIND11_MODULE(fstree, m) {
         .def("__iter__", [](fstree::index &idx) {
             return py::make_iterator(idx.begin(), idx.end());
         }, py::keep_alive<0, 1>());
-    
+
     // Expose the cache class
     py::class_<fstree::cache>(m, "Cache")
         .def(py::init([]() {
@@ -154,9 +156,9 @@ PYBIND11_MODULE(fstree, m) {
     py::class_<fstree::url>(m, "URL")
         .def(py::init<const std::string&>())
         .def("scheme", &fstree::url::scheme)
-        .def("host", &fstree::url::host)  
+        .def("host", &fstree::url::host)
         .def("path", &fstree::url::path);
-    
+
     // Expose the remote class (as abstract base)
     py::class_<fstree::remote>(m, "Remote")
         .def("has_object", &fstree::remote::has_object)
