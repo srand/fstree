@@ -30,7 +30,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install --upgrade jolt pyyaml
+        python -m pip install --upgrade jolt pyyaml cibuildwheel
     - name: Install dependencies on Windows
       if: matrix.os == 'windows-latest'
       run: |
@@ -49,26 +49,41 @@ jobs:
     - name: Create version header
       run: python scripts/version.py ${{ github.run_number}}
     - name: Build fstree
-      run: python -m jolt -c jolt.cachedir=${{ github.workspace }}/cache build fstree -c output -vvv
-    - name: Test package
-      run: python -m jolt -c jolt.cachedir=${{ github.workspace }}/cache build tests -vvv
+      if: matrix.os == 'windows-latest'
+      run: python -m jolt -c jolt.cachedir=${{ github.workspace }}/cache build fstree/deps -c sysroot/ -vvv
+    - name: Build and test fstree
+      if: matrix.os != 'windows-latest'
+      run: python -m jolt -c jolt.cachedir=${{ github.workspace }}/cache build fstree tests -c sysroot/ -vvv
     - name: Strip binary
       if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
-      run: strip output/bin/fstree
+      run: strip sysroot/bin/fstree
     - name: Rename binary
       if: matrix.os == 'windows-latest'
-      run: mv output/bin/fstree.exe output/bin/fstree-windows-x86_64.exe
+      run: mv sysroot/bin/fstree.exe sysroot/bin/fstree-windows-x86_64.exe
     - name: Rename binary
       if: matrix.os == 'ubuntu-latest'
-      run: mv output/bin/fstree output/bin/fstree-linux-x86_64
+      run: mv sysroot/bin/fstree sysroot/bin/fstree-linux-x86_64
     - name: Rename binary
       if: matrix.os == 'macos-latest'
-      run: mv output/bin/fstree output/bin/fstree-darwin-x86_64
-    - name: Upload
+      run: mv sysroot/bin/fstree sysroot/bin/fstree-darwin-x86_64
+    - name: Upload executable
       uses: actions/upload-artifact@v4
       with:
         name: binary-${{ matrix.os }}
-        path: output
+        path: ./sysroot/bin
+    - name: Remove build artifacts
+      if: matrix.os != 'windows-latest'
+      run: rm -rf build sysroot
+    - name: Build wheel deps
+      if: matrix.os == 'macos-latest'
+      run: python -m jolt -c jolt.cachedir=${{ github.workspace }}/cache build fstree/deps -c sysroot/ -vvv
+    - name: Build wheels
+      uses: pypa/cibuildwheel@v3.3.1
+    - name: Upload wheels
+      uses: actions/upload-artifact@v4
+      with:
+        name: wheels-${{ matrix.os }}
+        path: ./wheelhouse/*.whl
   release:
     needs: build
     runs-on: ubuntu-latest
@@ -88,13 +103,28 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: binary-macos-latest
-    - name: Remove test files
-      run: rm bin/fstree_test*
-    - name: Upload
+    - name: Download wheel
+      uses: actions/download-artifact@v4
+      with:
+        name: wheels-macos-latest
+    - name: Download wheel
+      uses: actions/download-artifact@v4
+      with:
+        name: wheels-ubuntu-latest
+    - name: Download wheel
+      uses: actions/download-artifact@v4
+      with:
+        name: wheels-windows-latest
+    - name: Upload executable
       uses: actions/upload-artifact@v4
       with:
         name: fstree
         path: bin
+    - name: Upload wheels
+      uses: actions/upload-artifact@v4
+      with:
+        name: wheels
+        path: wheelhouse
     - name: Get date
       id: date
       run: echo ::set-output name=date::$(date +%y.%m)
@@ -116,7 +146,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: bin/fstree-windows-x86_64.exe
+        asset_path: fstree-windows-x86_64.exe
         asset_name: fstree-windows-x86_64.exe
         asset_content_type: application/octet-stream
     - name: Upload release asset
@@ -125,7 +155,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: bin/fstree-linux-x86_64
+        asset_path: fstree-linux-x86_64
         asset_name: fstree-linux-x86_64
         asset_content_type: application/octet-stream
     - name: Upload release asset
@@ -134,6 +164,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: bin/fstree-darwin-x86_64
+        asset_path: fstree-darwin-x86_64
         asset_name: fstree-darwin-x86_64
         asset_content_type: application/octet-stream

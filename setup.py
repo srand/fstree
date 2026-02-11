@@ -15,11 +15,33 @@ include_dirs = [
     pybind11.get_cmake_dir() + '/../include'
 ]
 
+
 # Library directories
 library_dirs = [
     'sysroot/lib',
     'sysroot/lib64',
 ]
+
+
+if platform.system() == "Windows":
+    crypto = "libcrypto"
+    curl = "libcurl"
+    protobuf = "libprotobuf"
+    ssl = "libssl"
+    utf8_range = "libutf8_range"
+    utf8_validity = "libutf8_validity"
+    zlib = "zlibstatic"
+    zstd = "zstd_static"
+else:
+    curl = "curl"
+    ssl = "ssl"
+    crypto = "crypto"
+    protobuf = "protobuf"
+    utf8_range = "utf8_range"
+    utf8_validity = "utf8_validity"
+    zlib = "z"
+    zstd = "zstd"
+
 
 # Libraries
 libraries = [
@@ -33,7 +55,6 @@ libraries = [
     "upb_reflection_lib",
     "upb_wire_lib",
     "upb_message_lib",
-    "utf8_range_lib",
     "upb_mini_descriptor_lib",
     "upb_mini_table_lib",
     "upb_hash_lib",
@@ -43,14 +64,14 @@ libraries = [
     "gpr",
     "cares",
     "re2",
-    "curl",
-    "ssl",
-    "crypto",
-    "z",
+    curl,
+    ssl,
+    crypto,
+    zlib,
     "brotlidec",
     "brotlicommon",
-    "zstd",
-    "protobuf",
+    zstd,
+    protobuf,
     "absl_log_internal_check_op",
     "absl_die_if_null",
     "absl_log_internal_conditions",
@@ -120,8 +141,8 @@ libraries = [
     "absl_time",
     "absl_civil_time",
     "absl_time_zone",
-    "utf8_validity",
-    "utf8_range",
+    utf8_range,
+    utf8_validity,
     "absl_strings",
     "absl_strings_internal",
     "absl_string_view",
@@ -132,6 +153,10 @@ libraries = [
     "absl_raw_logging_internal",
     "absl_log_severity",
 ]
+
+if platform.system() == "Windows":
+    libraries += ["wldap32", "user32"]
+
 
 extra_compile_args = []
 extra_link_args = []
