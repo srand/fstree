@@ -26,7 +26,6 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS_DEBUG "-g")
   set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra -Werror -pedantic -DNDEBUG")
-  set(CMAKE_EXE_LINKER_FLAGS "-static")
   set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 endif()
 
@@ -45,9 +44,11 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15")
 # Find dependencies
 ################################################################################
 
-find_package(Protobuf CONFIG REQUIRED)
+set(BUILD_SHARED_LIBS OFF)
+
 find_package(gRPC CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
+
 if (fstree_ENABLE_HTTP)
     find_package(CURL CONFIG REQUIRED)
     add_compile_definitions(FSTREE_ENABLE_HTTP_REMOTE)

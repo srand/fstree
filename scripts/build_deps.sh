@@ -11,7 +11,7 @@ if [ -f /etc/alpine-release ]; then
 
     # Build
     rm -rf sysroot
-    /opt/python/cp312-cp312/bin/python -m jolt -vvv -c jolt.cachedir=/host/tmp/musl-cache build fstree/deps -c sysroot/
+    /opt/python/cp312-cp312/bin/python -m jolt -vvv -c jolt.cachedir=/project/cache build fstree/deps -c sysroot/
 else 
     # Install build dependencies for RHEL
     yum install -y perl
@@ -21,5 +21,5 @@ else
 
     # Build 
     rm -rf sysroot
-    /opt/python/cp312-cp312/bin/python -m jolt -vvv -c jolt.cachedir=/host/tmp/rhel-cache build fstree/deps -c sysroot/
+    /opt/python/cp312-cp312/bin/python -m jolt -vvv -c jolt.cachedir=/project/cache build fstree/deps -c sysroot/
 fi
