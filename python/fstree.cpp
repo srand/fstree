@@ -90,8 +90,10 @@ PYBIND11_MODULE(fstree, m) {
         .def_property_readonly("is_ignored", &fstree::inode::is_ignored)
         .def_property_readonly("is_symlink", &fstree::inode::is_symlink)
         .def_property_readonly("mtime", [](const fstree::inode& inode) {
-            // Return modification time as datetime object
-            return std::chrono::system_clock::time_point(std::chrono::nanoseconds(inode.last_write_time()));
+            using namespace std::chrono;
+            auto ns = inode.last_write_time();
+            auto tp = time_point<system_clock, nanoseconds>{nanoseconds{ns}};
+            return time_point_cast<system_clock::duration>(tp);
         })
         .def_property_readonly("symlink_target", &fstree::inode::target)
         .def("__iter__", [](fstree::inode &node) {

@@ -3,6 +3,7 @@
 from setuptools import setup, Extension
 from pybind11.setup_helpers import Pybind11Extension, build_ext
 import pybind11
+import platform
 
 
 # Add our source directories
@@ -132,6 +133,18 @@ libraries = [
     "absl_log_severity",
 ]
 
+extra_compile_args = []
+extra_link_args = []
+
+
+if platform.system() == "Darwin":
+    extra_compile_args.append("-mmacosx-version-min=10.15")
+    extra_link_args += [
+        "-mmacosx-version-min=10.15",
+        "-framework", "SystemConfiguration", "-lldap", "-llber",
+    ]
+
+
 # Define the extension
 ext_modules = [
     Pybind11Extension(
@@ -150,6 +163,8 @@ ext_modules = [
         libraries=libraries,
         language='c++',
         cxx_std=20,
+        extra_compile_args=extra_compile_args,
+        extra_link_args=extra_link_args,
     ),
 ]
 

@@ -61,11 +61,6 @@ class Fstree(cmake.CMake):
     ]
 
 
-class PythonBuildEnv(python.PythonEnv):
-    name = "py-build"
-    requirements = ["build", "cibuildwheel", "twine"]
-
-
 class PythonTestEnv(python.PythonEnv):
     name = "py-test"
     requirements = ["pyfstree"]
@@ -91,35 +86,8 @@ class FstreeDeps(Alias):
     ]
 
 
-@git.influence("pyproject.toml")
-@git.influence("python")
-@git.influence("src")
-class FstreePythonDist(Task):
-    name = "fstree/dist"
-    requires = ["py-build"]
-
-    def run(self, deps, tools):
-        self.builddir = self.tools.builddir(incremental=True)
-        tools.run("python3 -m build -o {builddir} --sdist")
-        tools.run("cibuildwheel --platform linux --output-dir {builddir} .")
-
-    def publish(self, artifact, tools):
-        with tools.cwd(self.builddir):
-            artifact.collect("*")
-
-
-class FstreePublish(Task):
-    name = "fstree/publish"
-    requires = ["fstree=fstree/dist"]
-
-    def run(self, deps, tools):
-        with tools.cwd(deps["fstree"].path):
-            tools.run("twine upload *")
-
-
 class Default(Alias):
     requires = [
-        "fstree/dist",
         "tests",
     ]
 
