@@ -55,6 +55,10 @@ class index {
 
   inode::ptr find_node_by_path(const std::filesystem::path& path) const;
 
+  // Returns a list of inodes matching the given glob pattern
+  std::vector<inode::ptr> glob(const std::string& pattern) const;
+  std::vector<inode::ptr> glob(const glob_list& patterns) const;
+
   // Loads the index from the default .fstree/index file
   void load();
 
@@ -87,6 +91,9 @@ class index {
  private:
   void checkout_node(fstree::cache& c, inode::ptr node, const std::filesystem::path& path);
 
+  std::vector<inode::ptr> glob_linear(const std::string& patterns, std::vector<inode::ptr>& result) const;
+
+  std::vector<inode::ptr> glob_recursive(const std::string& patterns, const inode::ptr& node, std::vector<inode::ptr>& result) const;
 
   void merge_recursive(inode::ptr& parent, const std::string& parent_path,
                        const std::vector<inode::ptr>& current_nodes,

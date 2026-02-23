@@ -4,6 +4,7 @@
 #include "directory_iterator.hpp"
 #include "event.hpp"
 #include "filesystem.hpp"
+#include "glob_list.hpp"
 #include "hash.hpp"
 #include "inode.hpp"
 
@@ -439,6 +440,177 @@ inode::ptr index::find_node_by_path(const std::filesystem::path& path) const {
     return *it;
   }
   return nullptr;
+}
+
+std::vector<inode::ptr> index::glob(const std::string& pattern) const {
+  std::vector<inode::ptr> result;
+  if (_root->has_children()) {
+    return glob_recursive(pattern, _root, result);
+  }
+  else {
+    return glob_linear(pattern, result);
+  }
+}
+
+std::vector<inode::ptr> index::glob(const glob_list& patterns) const {
+  std::vector<inode::ptr> result;
+  for (auto it = patterns.begin(); it != patterns.end(); ++it) {
+    if (_root->has_children()) {
+      glob_recursive(*it, _root, result);
+    } else {
+      glob_linear(*it, result);
+    }
+  }
+  // Remove duplicates (a file may be matched by more than one pattern).
+  std::sort(result.begin(), result.end(), [](const inode::ptr& a, const inode::ptr& b) {
+    return a->path() < b->path();
+  });
+  result.erase(std::unique(result.begin(), result.end(), [](const inode::ptr& a, const inode::ptr& b) {
+    return a->path() == b->path();
+  }), result.end());
+  return result;
+}
+
+std::vector<inode::ptr> index::glob_linear(const std::string& pattern, std::vector<inode::ptr>& result) const {
+  fstree::glob_list globber;
+  globber.add(pattern);
+  globber.finalize();
+
+  for (const auto& inode : _inodes) {
+    if (globber.match(inode->path())) {
+      result.push_back(inode);
+    }
+  }
+  return result;
+}
+
+// Match a single path segment against a pattern containing * and ?.
+// Does NOT handle **: callers must split that out first.
+static bool glob_match_segment(const std::string& pat, const std::string& name) {
+  size_t pi = 0, ni = 0;
+  // Index of the last '*' in pat and the corresponding position in name when
+  // that star was "chosen" to match zero characters.
+  size_t star_pi = std::string::npos, star_ni = 0;
+
+  while (ni < name.size()) {
+    if (pi < pat.size() && (pat[pi] == '?' || pat[pi] == name[ni])) {
+      ++pi; ++ni;
+    } else if (pi < pat.size() && pat[pi] == '*') {
+      // Record the star position and current name position; advance past the star.
+      star_pi = pi++;
+      star_ni = ni;
+    } else if (star_pi != std::string::npos) {
+      // Backtrack: the previous star now consumes one more character.
+      pi = star_pi + 1;
+      ni = ++star_ni;
+    } else {
+      return false;
+    }
+  }
+  // Consume any trailing stars in the pattern.
+  while (pi < pat.size() && pat[pi] == '*') ++pi;
+  return pi == pat.size();
+}
+
+// Split a glob pattern on '/' into segments, stripping any leading '/'.
+static std::vector<std::string> split_glob_pattern(const std::string& pattern) {
+  std::vector<std::string> segs;
+  size_t start = (pattern.size() > 0 && pattern[0] == '/') ? 1 : 0;
+  while (start < pattern.size()) {
+    size_t slash = pattern.find('/', start);
+    if (slash == std::string::npos) {
+      segs.push_back(pattern.substr(start));
+      break;
+    }
+    segs.push_back(pattern.substr(start, slash - start));
+    start = slash + 1;
+  }
+  return segs;
+}
+
+// Recursive descent through the inode tree.
+// segs:    pattern split into path segments
+// seg_idx: index of the segment we are currently trying to match
+// node:    an inode (may be directory or leaf) that we are testing
+// result:  matched inodes are appended here
+static void glob_match_node(
+    const std::vector<std::string>& segs, size_t seg_idx,
+    const inode::ptr& node, std::vector<inode::ptr>& result)
+{
+  if (seg_idx >= segs.size()) {
+    return;
+  }
+
+  const std::string& seg = segs[seg_idx];
+  const bool last_seg = (seg_idx + 1 == segs.size());
+
+  if (seg == "**") {
+    if (last_seg) {
+      // '**' as the final segment: match this node and everything beneath it.
+      result.push_back(node);
+      if (node->is_directory()) {
+        for (const auto& child : *node) {
+          glob_match_node(segs, seg_idx, child, result);
+        }
+      }
+    } else {
+      // Try consuming zero directory levels: attempt the NEXT segment against
+      // this same node.
+      glob_match_node(segs, seg_idx + 1, node, result);
+
+      // Try consuming one or more directory levels: if this node is a directory,
+      // descend into its children keeping '**' active for each of them.
+      if (node->is_directory()) {
+        for (const auto& child : *node) {
+          glob_match_node(segs, seg_idx, child, result);
+        }
+      }
+    }
+  } else {
+    // Normal segment (may contain * and ?).
+    if (!glob_match_segment(seg, node->name())) {
+      return;  // This subtree cannot match — skip it entirely.
+    }
+
+    if (last_seg) {
+      result.push_back(node);
+    } else if (node->is_directory()) {
+      // Partial match: descend into children with the next segment.
+      for (const auto& child : *node) {
+        glob_match_node(segs, seg_idx + 1, child, result);
+      }
+    }
+    // If not last segment and not a directory, no match possible.
+  }
+}
+
+std::vector<inode::ptr> index::glob_recursive(const std::string& pattern, const inode::ptr& node, std::vector<inode::ptr>& result) const {
+  std::vector<std::string> segs = split_glob_pattern(pattern);
+  if (segs.empty()) {
+    return result;
+  }
+
+  // node is _root (path="").  Mirror the semantics of glob_list::compile:
+  //   - Pattern starts with '/' → anchored: strip the leading slash and only
+  //     try matching from root-level children.
+  //   - Otherwise             → un-anchored: prepend an implicit "**" so that
+  //     the pattern can match at any depth in the tree.
+  bool anchored = (!pattern.empty() && pattern[0] == '/');
+
+  std::vector<std::string> effective_segs;
+  if (anchored) {
+    effective_segs = segs;  // leading '/' was already stripped by split_glob_pattern
+  } else {
+    effective_segs.reserve(1 + segs.size());
+    effective_segs.push_back("**");
+    effective_segs.insert(effective_segs.end(), segs.begin(), segs.end());
+  }
+
+  for (const auto& child : *node) {
+    glob_match_node(effective_segs, 0, child, result);
+  }
+
+  return result;
 }
 
 void index::load_ignore_from_index(fstree::cache& cache, const std::filesystem::path& path) {

@@ -20,6 +20,8 @@ public:
     auto end() const { return _index.end(); }
 
     void checkout(const std::string& dest_path);
+    std::vector<fstree::inode::ptr> glob(const std::string& pattern) const;
+    std::vector<fstree::inode::ptr> glob(const fstree::glob_list& patterns) const;
     void load(const std::string& tree_hash);
     std::optional<fstree::inode::ptr> lookup(const std::string& path) const;
     void push(const std::string& remote_url);

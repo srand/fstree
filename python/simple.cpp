@@ -11,6 +11,14 @@ void simple::checkout(const std::string& dest_path) {
     _index.checkout(_cache, std::filesystem::path(dest_path));
 }
 
+std::vector<fstree::inode::ptr> simple::glob(const std::string& pattern) const {
+    return _index.glob(pattern);
+}
+
+std::vector<fstree::inode::ptr> simple::glob(const fstree::glob_list& patterns) const {
+    return _index.glob(patterns);
+}
+
 void simple::load(const std::string& tree_hash) {
     fstree::index index;
     _cache.index_from_tree(fstree::digest::parse(tree_hash), index);

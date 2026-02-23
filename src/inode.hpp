@@ -99,6 +99,8 @@ class inode : public intrusive_ptr_base<inode> {
 
   bool is_equivalent(const inode::ptr& other) const;
 
+  bool has_children() const;
+
   void rehash(const std::filesystem::path& root);
 
   // equality operator

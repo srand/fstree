@@ -207,6 +207,7 @@ if (fstree_BUILD_TESTS)
         fstree_test
         test/test_config.cpp
         test/test_glob.cpp
+        test/test_index_glob.cpp
         test/test_iterator.cpp
         test/test_status.cpp
         test/test_url.cpp

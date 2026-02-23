@@ -42,6 +42,8 @@ bool inode::is_file() const { return _status.is_regular(); }
 
 bool inode::is_symlink() const { return _status.is_symlink(); }
 
+bool inode::has_children() const { return !_children.empty(); }
+
 // Hash methods
 const fstree::digest& inode::hash() const { return _hash; }
 
