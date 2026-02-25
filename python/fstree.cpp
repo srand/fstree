@@ -47,6 +47,7 @@ PYBIND11_MODULE(fstree, m) {
             auto inodes = s.glob(glob_list);
             return py::make_iterator(inodes.begin(), inodes.end());
         }, py::keep_alive<0, 1>(), py::arg("patterns"))
+        .def("load", &fstree::simple::load, py::arg("tree_hash"))
         .def("pull", &fstree::simple::pull,  py::arg("tree_hash"), py::arg("remote_url"))
         .def("push", &fstree::simple::push, py::arg("remote_url"))
         .def("write_tree", py::overload_cast<const std::string&>(&fstree::simple::write_tree), py::arg("path"))
