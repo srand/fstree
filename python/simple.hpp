@@ -32,6 +32,8 @@ public:
 private:
     cache _cache;
     index _index;
+    std::filesystem::path _indexfile = ".fstree/index";
+    std::filesystem::path _ignorefile = ".fstreeignore";
 };
 
 } // namespace fstree

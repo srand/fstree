@@ -36,8 +36,8 @@ PYBIND11_MODULE(fstree, m) {
         .def("checkout", &fstree::simple::checkout, py::arg("dest_path"))
         .def("glob", [](const fstree::simple &s, const std::string& pattern) {
             auto inodes = s.glob(pattern);
-            return std::vector<fstree::inode::ptr>(inodes.begin(), inodes.end());
-        }, py::arg("pattern"))
+            return py::make_iterator(inodes.begin(), inodes.end());
+        }, py::keep_alive<0, 1>(), py::arg("pattern"))
         .def("glob", [](const fstree::simple &s, const std::vector<std::string>& patterns) {
             fstree::glob_list glob_list;
             for (const auto& pattern : patterns) {
@@ -45,8 +45,8 @@ PYBIND11_MODULE(fstree, m) {
             }
             glob_list.finalize();
             auto inodes = s.glob(glob_list);
-            return std::vector<fstree::inode::ptr>(inodes.begin(), inodes.end());
-        }, py::arg("patterns"))
+            return py::make_iterator(inodes.begin(), inodes.end());
+        }, py::keep_alive<0, 1>(), py::arg("patterns"))
         .def("pull", &fstree::simple::pull,  py::arg("tree_hash"), py::arg("remote_url"))
         .def("push", &fstree::simple::push, py::arg("remote_url"))
         .def("write_tree", py::overload_cast<const std::string&>(&fstree::simple::write_tree), py::arg("path"))
