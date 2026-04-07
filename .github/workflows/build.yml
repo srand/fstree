@@ -48,7 +48,7 @@ jobs:
       with:
         arch: x64
       if: matrix.os == 'windows-latest'
-    - name: Create version header
+    - name: Create version header and update pyproject.toml
       run: python scripts/version.py ${{ github.run_number}}
     - name: Build fstree
       if: matrix.os == 'windows-latest'
