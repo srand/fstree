@@ -408,3 +408,52 @@ class Tests(Test):
         - f {0} dir3/file
         - l {0} dir3/link file
         """
+
+
+class Publish(Task):
+    """ Downloads release wheels from GitHub and publishes them to PyPI. """
+
+    version = Parameter("Version to publish")
+
+    base_url = "https://github.com/srand/fstree/releases/download/{version_long}/"
+
+    wheels = [
+        "pyfstree-{version}-cp310-cp310-macosx_11_0_arm64.whl",
+        "pyfstree-{version}-cp310-cp310-manylinux_2_28_x86_64.whl",
+        "pyfstree-{version}-cp310-cp310-musllinux_1_2_x86_64.whl",
+        "pyfstree-{version}-cp310-cp310-win_amd64.whl",
+
+        "pyfstree-{version}-cp311-cp311-macosx_11_0_arm64.whl",
+        "pyfstree-{version}-cp311-cp311-manylinux_2_28_x86_64.whl",
+        "pyfstree-{version}-cp311-cp311-musllinux_1_2_x86_64.whl",
+        "pyfstree-{version}-cp311-cp311-win_amd64.whl",
+
+        "pyfstree-{version}-cp312-cp312-macosx_11_0_arm64.whl",
+        "pyfstree-{version}-cp312-cp312-manylinux_2_28_x86_64.whl",
+        "pyfstree-{version}-cp312-cp312-musllinux_1_2_x86_64.whl",
+        "pyfstree-{version}-cp312-cp312-win_amd64.whl",
+
+        "pyfstree-{version}-cp313-cp313-macosx_11_0_arm64.whl",
+        "pyfstree-{version}-cp313-cp313-manylinux_2_28_x86_64.whl",
+        "pyfstree-{version}-cp313-cp313-musllinux_1_2_x86_64.whl",
+        "pyfstree-{version}-cp313-cp313-win_amd64.whl",
+
+        "pyfstree-{version}-cp314-cp314-macosx_11_0_arm64.whl",
+        "pyfstree-{version}-cp314-cp314-manylinux_2_28_x86_64.whl",
+        "pyfstree-{version}-cp314-cp314-musllinux_1_2_x86_64.whl",
+        "pyfstree-{version}-cp314-cp314-win_amd64.whl",
+    ]
+
+    @property
+    def version_long(self):
+        """ Adds a leading 0 to the minor version if it's a single digit. """
+        major, minor, patch = str(self.version).split(".")
+        if len(minor) == 1:
+            minor = "0" + minor
+        return f"{major}.{minor}.{patch}"
+
+    def run(self, deps, tools):
+        with tools.tmpdir() as tmp, tools.cwd(tmp):
+            for wheel in self.wheels:
+                tools.download(self.base_url + wheel, wheel)
+            tools.run("twine upload *.whl")
