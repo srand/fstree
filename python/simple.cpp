@@ -7,10 +7,11 @@
 
 namespace fstree {
 
-void simple::checkout(const std::string& dest_path) {
-    fstree::index dest_index(dest_path);
+std::string simple::checkout(const std::string& dest_path) {
+    const auto dest = std::filesystem::absolute(std::filesystem::path(dest_path));
+    fstree::index dest_index(dest);
     try {
-      dest_index.load();
+      dest_index.load(dest / _indexfile);
     }
     catch (const std::exception& e) {
     }
@@ -18,8 +19,9 @@ void simple::checkout(const std::string& dest_path) {
     _index.sort();
     _index.copy_metadata(dest_index);
     _index.load_ignore_from_index(_cache, _ignorefile);
-    _index.checkout(_cache, std::filesystem::path(dest_path));
-    _index.save(std::filesystem::path(dest_path) / _indexfile);
+    _index.checkout(_cache, dest);
+    _index.save(dest / _indexfile);
+    return _index.root()->hash().string();
 }
 
 std::vector<fstree::inode::ptr> simple::glob(const std::string& pattern) const {

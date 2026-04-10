@@ -23,6 +23,10 @@ PYBIND11_MODULE(fstree, m) {
     // Expose the simple API
     py::class_<fstree::simple>(m, "Simple")
         .def(py::init<>())
+        .def(py::init<const std::filesystem::path&>())
+        .def(py::init<const std::filesystem::path&, size_t, std::chrono::seconds>())
+        .def_property("ignorefile", &fstree::simple::ignorefile, &fstree::simple::set_ignorefile)
+        .def_property("indexfile", &fstree::simple::indexfile, &fstree::simple::set_indexfile)
         .def("__iter__", [](const fstree::simple &s) {
             return py::make_iterator(s.begin(), s.end());
         }, py::keep_alive<0, 1>())

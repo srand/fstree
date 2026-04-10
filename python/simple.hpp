@@ -4,6 +4,8 @@
 #include "index.hpp"
 #include "url.hpp"
 
+#include <chrono>
+#include <cstddef>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -15,11 +17,20 @@ namespace fstree {
 class simple {
 public:
     simple() = default;
+    simple(const std::filesystem::path& cache_dir)
+        : _cache(cache_dir, cache::default_max_size, cache::default_retention) {}
+    simple(const std::filesystem::path& cache_dir, size_t max_cache_size, std::chrono::seconds retention_period)
+        : _cache(cache_dir, max_cache_size, retention_period) {}
+
+    const std::filesystem::path& indexfile() const { return _indexfile; }
+    const std::filesystem::path& ignorefile() const { return _ignorefile; }
+    void set_indexfile(const std::filesystem::path& indexfile) { _indexfile = indexfile; }
+    void set_ignorefile(const std::filesystem::path& ignorefile) { _ignorefile = ignorefile; }
 
     auto begin() const { return _index.begin(); }
     auto end() const { return _index.end(); }
 
-    void checkout(const std::string& dest_path);
+    std::string checkout(const std::string& dest_path);
     std::vector<fstree::inode::ptr> glob(const std::string& pattern) const;
     std::vector<fstree::inode::ptr> glob(const fstree::glob_list& patterns) const;
     void load(const std::string& tree_hash);
