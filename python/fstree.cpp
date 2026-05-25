@@ -26,6 +26,12 @@ PYBIND11_MODULE(fstree, m) {
         .def(py::init<>())
         .def(py::init<const std::filesystem::path&>())
         .def(py::init<const std::filesystem::path&, size_t, std::chrono::seconds>())
+        .def(py::init([](const std::string& cache_dir) {
+            return new fstree::simple(std::filesystem::path(cache_dir));
+        }))
+        .def(py::init([](const std::string& cache_dir, size_t max_cache_size, std::chrono::seconds retention_period) {
+            return new fstree::simple(std::filesystem::path(cache_dir), max_cache_size, retention_period);
+        }))
         .def_property("ignorefile", &fstree::simple::ignorefile, &fstree::simple::set_ignorefile)
         .def_property("indexfile", &fstree::simple::indexfile, &fstree::simple::set_indexfile)
         .def("__iter__", [](const fstree::simple &s) {
