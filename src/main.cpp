@@ -17,6 +17,7 @@
 #include <thread>
 
 #ifndef _WIN32
+#include <fcntl.h>
 #include <unistd.h>
 #else
 #include <process.h>
@@ -85,6 +86,22 @@ bool spawn_evict_process(
 #else
   pid_t pid = fork();
   if (pid == 0) {
+    setsid();
+
+    int fd = open("/dev/null", O_RDWR);
+    if (fd >= 0) {
+      dup2(fd, STDIN_FILENO);
+      dup2(fd, STDOUT_FILENO);
+      dup2(fd, STDERR_FILENO);
+      if (fd > STDERR_FILENO) close(fd);
+    }
+
+    long maxfd = sysconf(_SC_OPEN_MAX);
+    if (maxfd < 0) maxfd = 1024;
+    for (int fd = STDERR_FILENO + 1; fd < maxfd; ++fd) {
+      close(fd);
+    }
+
     execlp(
         cmd.c_str(), cmd.c_str(), "evict", "--cache", cachedir.c_str(), "--cache-size", cachesize_str.c_str(),
         "--cache-retention", retention_str.c_str(), nullptr);
@@ -185,11 +202,12 @@ int cmd_fstree(const fstree::argparser& args) {
     for (const auto& inode : index) {
       auto mtime = std::chrono::nanoseconds(inode->last_write_time());
       if (inode->is_symlink())
-        std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " " << inode->status().str() << " " << rfc3339(mtime) << " "
-                  << inode->path() << " -> " << inode->target() << std::endl;
+        std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " "
+                  << inode->status().str() << " " << rfc3339(mtime) << " " << inode->path() << " -> " << inode->target()
+                  << std::endl;
       else
-        std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " " << inode->status().str() << " " << rfc3339(mtime) << " "
-                  << inode->path() << std::endl;
+        std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " "
+                  << inode->status().str() << " " << rfc3339(mtime) << " " << inode->path() << std::endl;
     }
 
     return EXIT_SUCCESS;
@@ -204,11 +222,11 @@ int cmd_fstree(const fstree::argparser& args) {
 
     for (const auto& inode : *root) {
       if (inode->is_symlink())
-        std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " " << inode->status().str() << " " << inode->path() << " -> "
-                  << inode->target() << std::endl;
+        std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " "
+                  << inode->status().str() << " " << inode->path() << " -> " << inode->target() << std::endl;
       else
-        std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " " << inode->status().str() << " " << inode->path()
-                  << std::endl;
+        std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " "
+                  << inode->status().str() << " " << inode->path() << std::endl;
     }
 
     root->clear();
