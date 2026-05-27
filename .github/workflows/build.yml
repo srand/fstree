@@ -30,7 +30,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install --upgrade jolt pyyaml cibuildwheel
+        python -m pip install --upgrade jolt==0.9.489 pyyaml cibuildwheel
     - name: Install dependencies on Windows
       if: matrix.os == 'windows-latest'
       run: |

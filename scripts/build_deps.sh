@@ -7,7 +7,7 @@ if [ -f /etc/alpine-release ]; then
     apk add --no-cache gcompat perl
 
     # Install dependencies for building libfstree and its dependencies
-    /opt/python/cp312-cp312/bin/pip install jolt
+    /opt/python/cp312-cp312/bin/pip install jolt==0.9.489
 
     # Build
     rm -rf sysroot
@@ -17,7 +17,7 @@ else
     yum install -y perl
 
     # Install dependencies for building libfstree and its dependencies
-    /opt/python/cp312-cp312/bin/pip install jolt
+    /opt/python/cp312-cp312/bin/pip install jolt==0.9.489
 
     # Build 
     rm -rf sysroot
