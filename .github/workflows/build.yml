@@ -11,6 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    environment: production
     strategy:
       matrix:
         os:
@@ -100,6 +101,14 @@ jobs:
       packages: write
       contents: write
     steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Install PyPI upload dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install --upgrade twine
     - name: Download
       uses: actions/download-artifact@v4
       with:
@@ -116,14 +125,17 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: wheels-macos-latest
+        path: dist
     - name: Download wheel
       uses: actions/download-artifact@v4
       with:
         name: wheels-ubuntu-latest
+        path: dist
     - name: Download wheel
       uses: actions/download-artifact@v4
       with:
         name: wheels-windows-latest
+        path: dist
     - name: Get date
       id: date
       run: echo ::set-output name=date::$(date +%y.%m)
@@ -145,7 +157,7 @@ jobs:
         TAG: ${{ steps.date.outputs.date }}.${{ github.run_number }}
       run: |
         shopt -s nullglob
-        for wheel in *.whl; do
+        for wheel in dist/*.whl; do
           gh release upload "$TAG" "$wheel" --repo "$GITHUB_REPOSITORY" --clobber
         done
     - name: Upload release asset
@@ -175,3 +187,10 @@ jobs:
         asset_path: fstree-darwin-x86_64
         asset_name: fstree-darwin-x86_64
         asset_content_type: application/octet-stream
+    - name: Release to PyPI
+      env:
+        TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+      run: |
+        python -m twine check dist/*.whl
+        python -m twine upload dist/*.whl
