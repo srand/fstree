@@ -48,16 +48,6 @@ std::string tolower(std::string s) {
   return s;
 }
 
-int error(const std::string& msg) {
-  std::cerr << "error: " << tolower(msg) << std::endl;
-  return EXIT_FAILURE;
-}
-
-int error(const std::string& msg, const std::error_code& ec) {
-  std::cerr << "error: " << tolower(msg) << ": " << tolower(ec.message()) << std::endl;
-  return EXIT_FAILURE;
-}
-
 std::string rfc3339(std::chrono::nanoseconds since_epoch) {
   // Convert time to RFC3339 format
   auto tp = std::chrono::system_clock::time_point(std::chrono::duration_cast<std::chrono::seconds>(since_epoch));
@@ -414,7 +404,11 @@ int main(int argc, char* argv[]) {
     return cmd_fstree(args);
   }
   catch (const std::exception& e) {
-    std::cerr << "error: " << tolower(e.what()) << std::endl;
+    if (fstree::events_enabled())
+      fstree::event("error", tolower(e.what()));
+    else
+      std::cerr << "error: " << tolower(e.what()) << std::endl;
+
     return EXIT_FAILURE;
   }
 }
