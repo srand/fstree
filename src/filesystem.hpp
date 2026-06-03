@@ -17,6 +17,7 @@ std::filesystem::path home_path();
 void lstat(const std::filesystem::path& path, stat& st);
 FILE* mkstemp(std::filesystem::path& templ);
 bool touch(const std::filesystem::path& path);
+bool link_file(const std::filesystem::path& from, const std::filesystem::path& to);
 
 }  // namespace fstree
 

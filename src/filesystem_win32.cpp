@@ -106,6 +106,20 @@ bool touch(const std::filesystem::path& path) {
   return true;
 }
 
+bool link_file(const std::filesystem::path& from, const std::filesystem::path& to) {
+  if (CreateHardLink(to.string().c_str(), from.string().c_str(), nullptr)) {
+    return true;
+  }
+
+  DWORD error = GetLastError();
+  if (error == ERROR_ALREADY_EXISTS || error == ERROR_FILE_EXISTS) {
+    return false;
+  }
+
+  std::error_code ec(error, std::system_category());
+  throw std::runtime_error("failed to link file: " + from.string() + " -> " + to.string() + ": " + ec.message());
+}
+
 }  // namespace fstree
 
 #endif  // _WIN32

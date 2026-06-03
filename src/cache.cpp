@@ -201,24 +201,47 @@ void cache::create_file(const std::filesystem::path& root, const inode::ptr& ino
   std::error_code ec;
 
   std::filesystem::path object_path = file_path(inode);
+  std::filesystem::path tmp = _tmpdir;
+  FILE* fp = fstree::mkstemp(tmp);
+  if (!fp) {
+    throw std::runtime_error("failed to create temporary file: " + tmp.string() + ": " + std::strerror(errno));
+  }
+  fclose(fp);
+
+  std::filesystem::copy_file(root / inode->path(), tmp, std::filesystem::copy_options::overwrite_existing, ec);
+  if (ec) {
+    std::error_code remove_ec;
+    std::filesystem::remove(tmp, remove_ec);
+    throw std::runtime_error("failed to copy file: " + inode->path() + ": " + ec.message());
+  }
+
+  std::filesystem::permissions(tmp, std::filesystem::perms(0600), ec);
+  if (ec) {
+    std::error_code remove_ec;
+    std::filesystem::remove(tmp, remove_ec);
+    throw std::runtime_error("failed to set file permissions: " + inode->path() + ": " + ec.message());
+  }
 
   if (!std::filesystem::create_directories(object_path.parent_path(), ec)) {
     // If the directory already exists, it's fine.
     if (ec) {
+      std::error_code remove_ec;
+      std::filesystem::remove(tmp, remove_ec);
       throw std::runtime_error(
           "failed to create directory: " + object_path.parent_path().string() + ": " + ec.message());
     }
   }
 
-  std::filesystem::copy_file(root / inode->path(), object_path, std::filesystem::copy_options::update_existing, ec);
-  if (ec) {
-    throw std::runtime_error("failed to copy file: " + inode->path() + ": " + ec.message());
+  try {
+    fstree::link_file(tmp, object_path);
+  }
+  catch (...) {
+    std::error_code remove_ec;
+    std::filesystem::remove(tmp, remove_ec);
+    throw;
   }
 
-  std::filesystem::permissions(object_path, std::filesystem::perms(0600), ec);
-  if (ec) {
-    throw std::runtime_error("failed to set file permissions: " + inode->path() + ": " + ec.message());
-  }
+  std::filesystem::remove(tmp, ec);
 }
 
 void cache::create_dirtree(inode::ptr& node) {
