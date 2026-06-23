@@ -73,18 +73,14 @@ void cache::add(fstree::index& index) {
       wg.add(1);
       pool.enqueue([this, &index, inode, &wg]() {
         try {
-          std::error_code ec;
-
           if (inode->is_dirty()) {
             inode->rehash(index.root_path());
-            auto context = _lock.lock();
             if (!has_object(inode->hash())) {
               event("cache::add", inode->path(), "dirty");
               create_file(index.root_path(), inode);
             }
           }
           else {
-            auto context = _lock.lock();
             if (!has_object(inode->hash())) {
               event("cache::add", inode->path(), "missing");
               create_file(index.root_path(), inode);
@@ -109,10 +105,6 @@ void cache::add(fstree::index& index) {
   }
 
   wg.wait_rethrow();
-
-#ifdef _WIN32
-  auto context = _lock.lock();
-#endif
 
   // Create directory nodes in reverse order
   for (auto it = dirty_dirs.rbegin(); it != dirty_dirs.rend(); ++it) {
@@ -233,7 +225,12 @@ void cache::create_file(const std::filesystem::path& root, const inode::ptr& ino
   }
 
   try {
-    fstree::link_file(tmp, object_path);
+    lock_file shard_lock(object_path.parent_path() / ".lock");
+    auto lock = shard_lock.lock();
+
+    if (!has_object(inode->hash())) {
+      fstree::link_file(tmp, object_path);
+    }
   }
   catch (...) {
     std::error_code remove_ec;
@@ -289,6 +286,14 @@ void cache::create_dirtree(inode::ptr& node) {
       throw std::runtime_error(
           "failed to create directory: " + object_path.parent_path().string() + ": " + ec.message());
     }
+  }
+
+  lock_file shard_lock(object_path.parent_path() / ".lock");
+  auto lock = shard_lock.lock();
+
+  if (std::filesystem::exists(object_path, ec)) {
+    std::filesystem::remove(tmp, ec);
+    return;
   }
 
   std::filesystem::rename(tmp, object_path, ec);
@@ -572,6 +577,13 @@ void cache::evict() {
 }
 
 void cache::evict_subdir(const std::filesystem::path& dir) {
+  lock_file shard_lock(dir / ".lock");
+  auto lock = shard_lock.try_lock();
+  if (!lock) {
+    event("cache::evict", dir.string(), "locked");
+    return;
+  }
+
   const auto sort_by_mtime = [](const inode::ptr& a, const inode::ptr& b) {
     return a->last_write_time() < b->last_write_time();
   };
@@ -580,19 +592,24 @@ void cache::evict_subdir(const std::filesystem::path& dir) {
   // Summarize the size of all objects in the directory
   size_t size = 0;
   for (const auto& inode : objects) {
+    if (inode->name() == ".lock") {
+      continue;
+    }
     size += inode->size();
   }
 
   // Evict objects until the size is below the cache limit
   for (const auto& inode : objects) {
+    if (inode->name() == ".lock") {
+      continue;
+    }
+
     if (size < _max_size_slice) {
       break;
     }
 
-    auto lock = _lock.lock();
-
     // First check if the object is still present and if it is, check the access time
-    // with the cache lock held.
+    // with the shard lock held.
     fstree::stat status;
 
     try {
