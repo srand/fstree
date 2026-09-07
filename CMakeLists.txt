@@ -80,6 +80,7 @@ set(SRCS
     src/index.cpp
     src/inode.cpp
     src/intrusive_ptr.cpp
+    src/jobserver.cpp
     src/jolt.proto
     src/remote.cpp
     src/remote_jolt.cpp
@@ -218,6 +219,7 @@ if (fstree_BUILD_TESTS)
         test/test_glob.cpp
         test/test_index_glob.cpp
         test/test_iterator.cpp
+        test/test_jobserver.cpp
         test/test_status.cpp
         test/test_url.cpp
     )

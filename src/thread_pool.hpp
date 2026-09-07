@@ -1,6 +1,7 @@
 #ifndef THREAD_POOL_HPP
 #define THREAD_POOL_HPP
 
+#include "jobserver.hpp"
 #include "semaphore.hpp"
 
 #include <condition_variable>
@@ -36,20 +37,22 @@ class thread_pool : public pool {
   // Enqueue a function to be executed by the thread pool, or run it immediately if all threads are busy
   void enqueue_or_run(std::function<void()> f) override;
 
-  // Start all threads
-  void start();
-
   // Wait for all threads to finish
   void stop();
 
  private:
+  // Spawn a new worker thread. Must be called with _mutex held.
+  void spawn_worker();
+
   std::vector<std::thread> _threads;
   std::queue<std::function<void()>> _queue;
   std::mutex _mutex;
   std::condition_variable _cv;
   size_t _max_threads;
+  size_t _idle = 0;
   bool _stop = false;
   semaphore _sem;
+  jobserver::ptr _jobserver;
 };
 
 // A mock thread pool that executes functions directly
