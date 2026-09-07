@@ -75,6 +75,13 @@ TEST(Jobserver, Create_NoConfig) {
   set_env("MAKEFLAGS", nullptr);
 }
 
+TEST(Jobserver, SetPath_UnusablePath) {
+  set_env("MAKEFLAGS", nullptr);
+  fstree::jobserver::set_path("/nonexistent/fstree-jobserver-fifo");
+  EXPECT_FALSE(fstree::jobserver::create());
+  fstree::jobserver::set_path("");
+}
+
 #if !defined(_WIN32)
 
 TEST(Jobserver, PipeTokens) {
@@ -129,6 +136,39 @@ TEST(Jobserver, FifoTokens) {
   EXPECT_TRUE(js->try_acquire(t4));
 
   js.reset();
+  ::close(wfd);
+  ::unlink(path.c_str());
+  set_env("MAKEFLAGS", nullptr);
+}
+
+TEST(Jobserver, SetPath_OverridesEnv) {
+  std::filesystem::path path =
+      std::filesystem::temp_directory_path() / ("fstree_js_path_" + std::to_string(::getpid()));
+  ::unlink(path.c_str());
+  ASSERT_EQ(::mkfifo(path.c_str(), 0600), 0);
+
+  int wfd = ::open(path.c_str(), O_RDWR);  // keep the fifo open with a writer
+  ASSERT_GE(wfd, 0);
+  ASSERT_EQ(::write(wfd, "+", 1), 1);
+
+  set_env("MAKEFLAGS", "-j8 --output-sync=target");  // no jobserver advertised
+  fstree::jobserver::set_path(path.string());
+
+  fstree::jobserver::ptr js = fstree::jobserver::create();
+  ASSERT_TRUE(js);
+  EXPECT_TRUE(js->active());
+
+  char t1 = 0, t2 = 0;
+  EXPECT_TRUE(js->try_acquire(t1));
+  EXPECT_FALSE(js->try_acquire(t2));
+  js->release(t1);
+
+  js.reset();
+
+  // An empty path restores the environment lookup.
+  fstree::jobserver::set_path("");
+  EXPECT_FALSE(fstree::jobserver::create());
+
   ::close(wfd);
   ::unlink(path.c_str());
   set_env("MAKEFLAGS", nullptr);

@@ -22,9 +22,14 @@ class jobserver : public intrusive_ptr_base<jobserver> {
   jobserver(const jobserver&) = delete;
   jobserver& operator=(const jobserver&) = delete;
 
-  // Create a jobserver client from the current environment. Returns null when
-  // no usable jobserver is advertised in MAKEFLAGS.
+  // Create a jobserver client from the configured path, or from the current
+  // environment when no path is set. Returns null when no usable jobserver is
+  // available.
   static ptr create();
+
+  // Set the path of a jobserver named fifo to use instead of the jobserver
+  // advertised in MAKEFLAGS. An empty path restores the environment lookup.
+  static void set_path(const std::string& path);
 
   // Parse the GNU Make jobserver auth string from the MAKEFLAGS environment
   // variable. Returns the value of --jobserver-auth= (make >= 4.2) or the older

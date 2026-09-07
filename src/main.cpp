@@ -3,6 +3,7 @@
 #include "event.hpp"
 #include "hash.hpp"
 #include "index.hpp"
+#include "jobserver.hpp"
 #include "thread.hpp"
 #include "url.hpp"
 #include "version.hpp"
@@ -129,6 +130,8 @@ int cmd_fstree(const fstree::argparser& args) {
   catch (const std::exception& e) {
     throw std::invalid_argument("invalid thread count: " + threads);
   }
+
+  fstree::jobserver::set_path(args.get_option("--jobserver-path"));
 
   size_t cachesize = 0;
   try {
@@ -395,6 +398,7 @@ int main(int argc, char* argv[]) {
     args.add_option_alias("--remote", "-r");
     args.add_option("--threads", std::to_string(std::thread::hardware_concurrency()));
     args.add_option_alias("--threads", "-j");
+    args.add_option("--jobserver-path", "");
     args.add_bool_option("--help");
     args.add_option_alias("--help", "-h");
     args.add_bool_option("--version");

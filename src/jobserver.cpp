@@ -13,6 +13,12 @@
 
 namespace fstree {
 
+namespace {
+std::string jobserver_path;
+}
+
+void jobserver::set_path(const std::string& path) { jobserver_path = path; }
+
 std::string jobserver::jobserver_auth_from_env() {
   const char* makeflags = std::getenv("MAKEFLAGS");
   if (makeflags == nullptr) {
@@ -36,7 +42,7 @@ std::string jobserver::jobserver_auth_from_env() {
 }
 
 jobserver::ptr jobserver::create() {
-  std::string auth = jobserver_auth_from_env();
+  std::string auth = jobserver_path.empty() ? jobserver_auth_from_env() : "fifo:" + jobserver_path;
   if (auth.empty()) {
     return nullptr;
   }
