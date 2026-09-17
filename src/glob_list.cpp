@@ -6,9 +6,82 @@
 #include <regex>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace fstree {
+
+namespace {
+
+// Translate one .gitignore style pattern into a parenthesized regex fragment
+// that matches the pattern itself and, when it names a directory, everything
+// below it.
+std::string compile_pattern(const std::string& p) {
+  std::string pattern = "(";
+  bool star = false;
+  bool skip_slash = false;
+  for (size_t i = 0; i < p.size(); ++i) {
+    char c = p[i];
+
+    if (i == 0) {
+      if (c == '/') {
+        pattern += "^";
+        continue;
+      }
+      else {
+        pattern += "(.*/)?";
+      }
+    }
+
+    if (skip_slash) {
+      skip_slash = false;
+      if (c == '/') {
+        continue;
+      }
+    }
+
+    if (star) {
+      if (c == '*') {
+        pattern += "([^/]*(/[^/])*)(/?)";
+        star = false;
+        skip_slash = true;
+        continue;
+      }
+      else {
+        pattern += "[^/]*";
+        star = false;
+      }
+    }
+
+    switch (c) {
+      case '*':
+        star = true;
+        break;
+      case '?':
+        pattern += ".";
+        break;
+      case '.':
+        pattern += "\\.";
+        break;
+      default:
+        if (star) {
+          pattern += "[^/]*";
+          star = false;
+        }
+        pattern += c;
+        break;
+    }
+  }
+
+  if (star) {
+    pattern += "[^/]*";
+  }
+
+  pattern += "(/.*)?)";
+  return pattern;
+}
+
+}  // namespace
 
 // Default constructor
 glob_list::glob_list() = default;
@@ -26,13 +99,32 @@ void glob_list::add(const std::string& input_pattern) {
     return;
   }
 
+  bool negated = false;
   if (pattern[0] == '!') {
-    throw std::runtime_error("negated patterns are not supported");
-    _exclusive_patterns.push_back(pattern.substr(1));
+    negated = true;
+    pattern.erase(0, 1);
+  }
+  else if (pattern[0] == '\\' && pattern.size() > 1 && pattern[1] == '!') {
+    // A leading ! can be escaped to match it literally.
+    pattern.erase(0, 1);
+  }
+
+  // A pattern that was nothing but ! selects nothing.
+  if (pattern.empty()) {
+    return;
+  }
+
+  if (negated) {
+    _negations = true;
   }
   else {
     _inclusive_patterns.push_back(pattern);
   }
+
+  rule r;
+  r.pattern = pattern;
+  r.negated = negated;
+  _rules.push_back(std::move(r));
 }
 
 void glob_list::compile(const std::vector<std::string>& patterns, std::regex& regex) {
@@ -41,73 +133,10 @@ void glob_list::compile(const std::vector<std::string>& patterns, std::regex& re
     if (!pattern.empty()) {
       pattern += "|";
     }
-    else {
-      pattern += "^";
-    }
-    pattern += "(";
-    bool star = false;
-    bool skip_slash = false;
-    for (size_t i = 0; i < p.size(); ++i) {
-      char c = p[i];
-
-      if (i == 0) {
-        if (c == '/') {
-          pattern += "^";
-          continue;
-        }
-        else {
-          pattern += "(.*/)?";
-        }
-      }
-
-      if (skip_slash) {
-        skip_slash = false;
-        if (c == '/') {
-          continue;
-        }
-      }
-
-      if (star) {
-        if (c == '*') {
-          pattern += "([^/]*(/[^/])*)(/?)";
-          star = false;
-          skip_slash = true;
-          continue;
-        }
-        else {
-          pattern += "[^/]*";
-          star = false;
-        }
-      }
-
-      switch (c) {
-        case '*':
-          star = true;
-          break;
-        case '?':
-          pattern += ".";
-          break;
-        case '.':
-          pattern += "\\.";
-          break;
-        default:
-          if (star) {
-            pattern += "[^/]*";
-            star = false;
-          }
-          pattern += c;
-          break;
-      }
-    }
-
-    if (star) {
-      pattern += "[^/]*";
-    }
-
-    pattern += "(/.*)?)$";
+    pattern += compile_pattern(p);
   }
 
-  regex = std::regex(pattern);
+  regex = std::regex("^(" + pattern + ")$");
 }
 
 // Load patterns from a file
@@ -131,11 +160,23 @@ void glob_list::load(const std::filesystem::path& path) {
 
 void glob_list::finalize() {
   compile(_inclusive_patterns, _inclusive_regex);
-  compile(_exclusive_patterns, _exclusive_regex);
+
+  // The per-pattern regexes are only needed to resolve the order in which
+  // negations and normal patterns override each other. Without a negation
+  // the combined regex above answers on its own.
+  if (_negations) {
+    for (auto& r : _rules) {
+      r.regex = std::regex("^" + compile_pattern(r.pattern) + "$");
+    }
+  }
 }
 
 // Returns true if the path should be ignored.
 bool glob_list::match(const std::string& path) const {
+  if (_inclusive_patterns.empty()) {
+    return false;
+  }
+
   std::string adjusted_path = path;
 #ifdef _WIN32
   for (auto& c : adjusted_path) {
@@ -144,12 +185,26 @@ bool glob_list::match(const std::string& path) const {
     }
   }
 #endif
-  if (std::regex_match(adjusted_path, _exclusive_regex)) {
+
+  // Only a non-negated pattern can ignore a path, so a path matching none of
+  // them is never ignored. This keeps the common case at a single regex and
+  // spares the ordered scan below for every path that is not ignored anyway.
+  if (!std::regex_match(adjusted_path, _inclusive_regex)) {
     return false;
   }
-  if (std::regex_match(adjusted_path, _inclusive_regex)) {
+
+  if (!_negations) {
     return true;
   }
+
+  // The last pattern that matches decides, so scan back to front and stop at
+  // the first hit.
+  for (auto it = _rules.rbegin(); it != _rules.rend(); ++it) {
+    if (std::regex_match(adjusted_path, it->regex)) {
+      return !it->negated;
+    }
+  }
+
   return false;
 }
 

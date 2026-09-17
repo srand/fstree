@@ -13,7 +13,14 @@ trees are pushed and pulled between the server and the clients. Merkle trees are
 to efficiently determine what parts of the tree need to be downloaded or uploaded.
 
 Files and directories can be ignored using a `.fstreeignore` file in the root of the tree.
-It uses the same syntax as `.gitignore` files.
+It uses the same syntax as `.gitignore` files, including negated patterns: a pattern
+prefixed with ``!`` re-includes paths that an earlier pattern ignored, and the last
+pattern matching a path decides whether it is ignored. To match a literal leading
+``!``, escape it as ``\!``.
+
+As in git, a file below an ignored directory cannot be re-included by a negated
+pattern. Ignored directories are pruned while the tree is scanned, so their contents
+are never visited.
 
 A simple gRPC protocol is used to communicate between the client and the server.
 A reference server implementation is available as the

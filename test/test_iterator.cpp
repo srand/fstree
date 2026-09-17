@@ -227,6 +227,50 @@ TEST_F(DirectoryIteratorTest, IgnoreNestedPaths) {
     EXPECT_EQ(0, paths.count("project/node_modules/package.json"));
 }
 
+// A negated pattern re-includes a file inside a directory that is still walked.
+TEST_F(DirectoryIteratorTest, NegatedPatternReincludesFile) {
+    CreateDirectory("logs");
+    CreateFile("logs/app.log");
+    CreateFile("logs/keep.log");
+    CreateFile("notes.txt");
+
+    glob_list ignores;
+    ignores.add("*.log");
+    ignores.add("!keep.log");
+    ignores.finalize();
+
+    sorted_directory_iterator it(test_dir, ignores);
+
+    auto paths = GetPaths(it);
+    EXPECT_EQ(3u, paths.size());
+    EXPECT_EQ(1, paths.count("logs"));
+    EXPECT_EQ(1, paths.count("logs/keep.log"));
+    EXPECT_EQ(0, paths.count("logs/app.log"));
+    EXPECT_EQ(1, paths.count("notes.txt"));
+}
+
+// A negation cannot re-include anything below an ignored directory. The
+// directory is pruned during the walk, so its contents are never traversed.
+TEST_F(DirectoryIteratorTest, NegatedPatternCannotEscapeIgnoredDirectory) {
+    CreateDirectory("build");
+    CreateFile("build/keep.txt");
+    CreateFile("build/output.bin");
+    CreateFile("README.md");
+
+    glob_list ignores;
+    ignores.add("build");
+    ignores.add("!build/keep.txt");
+    ignores.finalize();
+
+    sorted_directory_iterator it(test_dir, ignores);
+
+    auto paths = GetPaths(it);
+    EXPECT_EQ(1u, paths.size());
+    EXPECT_EQ(1, paths.count("README.md"));
+    EXPECT_EQ(0, paths.count("build"));
+    EXPECT_EQ(0, paths.count("build/keep.txt"));
+}
+
 // Test symlinks (if supported)
 TEST_F(DirectoryIteratorTest, SymlinkFiles) {
     CreateFile("target.txt", "target content");

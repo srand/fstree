@@ -160,10 +160,16 @@ class Tests(Test):
                     self.create_tree(self.tools, conf.get("checkout", []))
 
                 with self.tools.cwd("expected"):
+                    # The ignore file is part of the tree and gets checked out
+                    # along with it, so the expected result must contain it too.
+                    if "ignores" in conf:
+                        self.create_ignore(self.tools, conf["ignores"])
                     self.create_tree(self.tools, conf.get("expected", conf.get("tree", [])))
 
-                # Write the tree
-                tree = self.tools.run("fstree write-tree expected")
+                # Write the tree. The ignore file lives in the source tree and
+                # decides what is included, so write-tree must run on that tree
+                # and not on the already filtered expected result.
+                tree = self.tools.run("fstree write-tree tree")
                 self.tools.run("fstree ls-tree {}", tree)
 
                 # Checkout the tree
@@ -407,6 +413,32 @@ class Tests(Test):
         - d {0} dir3
         - f {0} dir3/file
         - l {0} dir3/link file
+        """
+
+
+    @Test.parameterized([0o777])
+    @runner
+    def test_ignore_negation(self):
+        """
+        Test that a negated pattern re-includes an ignored file, and that it
+        cannot re-include anything below an ignored directory.
+        ---
+        ignores:
+        - '*.log'
+        - '!keep.log'
+        - dir2
+        - '!dir2/keep.log'
+        tree:
+        - d {0} dir
+        - f {0} dir/app.log
+        - f {0} dir/keep.log
+        - f {0} file
+        - d {0} dir2
+        - f {0} dir2/keep.log
+        expected:
+        - d {0} dir
+        - f {0} dir/keep.log
+        - f {0} file
         """
 
 
