@@ -2,6 +2,8 @@
 
 #include "lock_file.hpp"
 
+#include "encoding.hpp"
+
 #include <Windows.h>
 
 #include <map>
@@ -57,11 +59,11 @@ lock_file::lock_file(const std::filesystem::path& path)
   std::filesystem::create_directories(path.parent_path());
 
   // Create lock file
-  _handle = CreateFileA(_path.string().c_str(), GENERIC_READ | GENERIC_WRITE,
+  _handle = CreateFileW(_path.c_str(), GENERIC_READ | GENERIC_WRITE,
                         FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_ALWAYS,
                         FILE_ATTRIBUTE_NORMAL, NULL);
   if (_handle == INVALID_HANDLE_VALUE) {
-    throw std::runtime_error("failed to create lock file: " + _path.string());
+    throw std::runtime_error("failed to create lock file: " + to_utf8(_path));
   }
 }
 
@@ -81,7 +83,7 @@ lock_file::context lock_file::lock() {
   // Lock using LockFileEx().
   OVERLAPPED overlapped = {};
   if (!LockFileEx(_handle, LOCKFILE_EXCLUSIVE_LOCK, 0, 1, 0, &overlapped)) {
-    throw std::runtime_error("failed to lock file: " + _path.string());
+    throw std::runtime_error("failed to lock file: " + to_utf8(_path));
   }
 
   return context(*this, std::move(mutex_lock));
@@ -104,7 +106,7 @@ std::optional<lock_file::context> lock_file::try_lock() {
     if (error == ERROR_LOCK_VIOLATION) {
       return std::nullopt;
     }
-    throw std::runtime_error("failed to lock file: " + _path.string());
+    throw std::runtime_error("failed to lock file: " + to_utf8(_path));
   }
 
   return context(*this, std::move(mutex_lock));
@@ -117,7 +119,7 @@ void lock_file::unlock() {
 
   // Unlock using UnlockFile()
   if (!UnlockFile(_handle, 0, 0, 1, 0)) {
-    throw std::runtime_error("failed to unlock file: " + _path.string());
+    throw std::runtime_error("failed to unlock file: " + to_utf8(_path));
   }
 }
 

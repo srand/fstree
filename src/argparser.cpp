@@ -1,5 +1,7 @@
 #include "argparser.hpp"
 
+#include "encoding.hpp"
+
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
@@ -165,9 +167,9 @@ std::string argparser::get_option(const std::string& name) const {
 
 std::filesystem::path argparser::get_option_path(const std::string& name, bool absolute) const {
   if (absolute) {
-    return std::filesystem::absolute(get_option(name)).lexically_normal();
+    return std::filesystem::absolute(to_path(get_option(name))).lexically_normal();
   }
-  return std::filesystem::path(get_option(name)).lexically_normal();
+  return to_path(get_option(name)).lexically_normal();
 }
 
 bool argparser::has_option(const std::string& name) const {
@@ -185,7 +187,7 @@ std::string argparser::get_value(size_t index) const {
 }
 
 std::filesystem::path argparser::get_value_path(size_t index) const {
-  return std::filesystem::absolute(get_value(index)).lexically_normal();
+  return std::filesystem::absolute(to_path(get_value(index))).lexically_normal();
 }
 
 size_t argparser::size() const { 

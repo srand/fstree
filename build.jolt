@@ -141,26 +141,47 @@ class Tests(Test):
         self.tools.run("fstree_test")
 
     def test_irregular_bytes_in_event_paths(self):
-        """Test arbitrary filename bytes survive checkout and produce UTF-8 JSON."""
-        if os.name != "posix":
-            self.skipTest("byte-oriented filesystem paths require POSIX")
+        """Test irregular filenames survive checkout and produce UTF-8 JSON."""
 
+        # None of these characters exist in a legacy Windows code page, so they
+        # only survive a build that reads and writes paths through the wide
+        # entry points. The emoji is outside the BMP and so is a surrogate pair
+        # in UTF-16. None of them have a canonical decomposition, which keeps
+        # the comparison immune to the normalization macOS applies on HFS+.
+        #
+        # They are spelled as escapes to keep this recipe pure ASCII: Jolt reads
+        # recipes with the locale encoding, which is a legacy code page such as
+        # cp1252 on Windows, and any literal non-ASCII byte here would fail to
+        # decode before a single task runs.
         filenames = [
-            b"invalid-\xff",
-            b"truncated-\xe2\x82",
-            b"continuation-\x80",
+            "\u65e5\u672c\u8a9e",  # Japanese "nihongo"
+            "\U0001f4c1",  # File folder emoji, U+1F4C1
+            "\u041a\u0438\u0440\u0438\u043b\u043b\u0438\u0446\u0430",  # Russian "Kirillica"
         ]
 
         with self.tools.tmpdir("irregular-bytes") as tmp, self.tools.cwd(tmp):
-            tmp_bytes = os.fsencode(tmp)
-            source = os.path.join(tmp_bytes, b"source")
-            actual = os.path.join(tmp_bytes, b"actual")
+            source = os.path.join(tmp, "source")
+            actual = os.path.join(tmp, "actual")
             os.mkdir(source)
             os.mkdir(actual)
 
+            # Names that are not valid UTF-8 at all are only expressible where
+            # the filesystem stores names as opaque bytes. Windows names are
+            # UTF-16, and macOS validates the encoding and rejects these with
+            # EILSEQ, so add them only where they can actually be created.
+            for raw in [b"invalid-\xff", b"truncated-\xe2\x82", b"continuation-\x80"]:
+                try:
+                    name = os.fsdecode(raw)
+                    probe = os.path.join(source, name)
+                    os.close(os.open(probe, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600))
+                except (OSError, UnicodeError):
+                    break
+                os.unlink(probe)
+                filenames.append(name)
+
             for filename in filenames:
                 with open(os.path.join(source, filename), "wb") as stream:
-                    stream.write(filename)
+                    stream.write(os.fsencode(filename))
 
             invocation = 0
 
@@ -187,14 +208,19 @@ class Tests(Test):
             tree, write_events = run_json("write-tree", "source")
             _, checkout_events = run_json("checkout", tree, "actual")
 
-            actual_filenames = set(os.listdir(actual)) - {b".fstree"}
+            actual_filenames = set(os.listdir(actual)) - {".fstree"}
             self.assertEqual(actual_filenames, set(filenames))
+
+            # escape() emits one \u00XX escape per byte, so a decoded path is a
+            # string of code points 0-255 that latin-1 turns back into exactly
+            # the bytes fstree saw.
             event_paths = [
                 event.get("path", "").encode("latin-1")
                 for event in write_events + checkout_events
             ]
             for filename in filenames:
-                self.assertTrue(any(filename in path for path in event_paths), repr(filename))
+                encoded = os.fsencode(filename)
+                self.assertTrue(any(encoded in path for path in event_paths), repr(filename))
 
     def runner(func):
 

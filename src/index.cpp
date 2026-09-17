@@ -66,7 +66,7 @@ std::vector<inode::ptr>::const_iterator index::end() const { return _inodes.cend
 
 std::vector<inode::ptr>::size_type index::size() const { return _inodes.size(); }
 
-std::string index::root_path() const { return _root_path.string(); }
+std::string index::root_path() const { return to_utf8(_root_path); }
 
 inode::ptr& index::root() { return _root; }
 
@@ -272,7 +272,7 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
     if (cur_index_node == end_index_node) {
       for (; cur_tree_node != end_tree_node; cur_tree_node++) {
         // Remove files that are not in the index
-        std::filesystem::path absolute_path = path / (*cur_tree_node)->path();
+        std::filesystem::path absolute_path = path / to_path((*cur_tree_node)->path());
         std::filesystem::remove_all(absolute_path, ec);
         if (ec) {
           throw std::runtime_error("failed to remove file: " + absolute_path.string() + ": " + ec.message());
@@ -285,14 +285,14 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
     if ((*cur_tree_node)->path() < (*cur_index_node)->path()) {
       // Check if the parent directory of the tree node is canonical.
       // If not, the tree node must be ignored because it's parent directory became a symlink.
-      std::filesystem::path tree_parent = (path / (*cur_tree_node)->path()).parent_path();
+      std::filesystem::path tree_parent = (path / to_path((*cur_tree_node)->path())).parent_path();
       std::filesystem::path tree_canonical_parent = std::filesystem::weakly_canonical(tree_parent);
       if (tree_parent != tree_canonical_parent) {
         cur_tree_node++;
         continue;
       }
 
-      std::filesystem::path absolute_path = path / (*cur_tree_node)->path();
+      std::filesystem::path absolute_path = path / to_path((*cur_tree_node)->path());
       std::filesystem::remove_all(absolute_path, ec);
       if (ec) {
         throw std::runtime_error("failed to remove directory: " + absolute_path.string() + ": " + ec.message());
@@ -314,7 +314,7 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
       if ((*cur_tree_node)->type() != (*cur_index_node)->type()) {
         switch ((*cur_tree_node)->type()) {
           case std::filesystem::file_type::directory: {
-            std::filesystem::path absolute_path = path / (*cur_tree_node)->path();
+            std::filesystem::path absolute_path = path / to_path((*cur_tree_node)->path());
             std::filesystem::remove_all(absolute_path, ec);
             if (ec) {
               throw std::runtime_error("failed to remove directory: " + absolute_path.string() + ": " + ec.message());
@@ -333,7 +333,7 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
           }
 
           default: {
-            std::filesystem::path absolute_path = path / (*cur_tree_node)->path();
+            std::filesystem::path absolute_path = path / to_path((*cur_tree_node)->path());
             std::filesystem::remove(absolute_path, ec);
             if (ec) {
               throw std::runtime_error("failed to remove file: " + absolute_path.string() + ": " + ec.message());
@@ -356,8 +356,8 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
       // Compare inode permissions
       if ((*cur_tree_node)->permissions() != (*cur_index_node)->permissions()) {
         std::filesystem::permissions(
-            path / (*cur_index_node)->path(), (*cur_index_node)->permissions(), std::filesystem::perm_options::replace,
-            ec);
+            path / to_path((*cur_index_node)->path()), (*cur_index_node)->permissions(),
+            std::filesystem::perm_options::replace, ec);
         if (ec) {
           throw std::runtime_error("failed to set permissions: " + path.string() + ": " + ec.message());
         }
@@ -365,7 +365,7 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
 
       // Compare symlink target
       if ((*cur_index_node)->target() != (*cur_tree_node)->target()) {
-        std::filesystem::remove(path / (*cur_index_node)->path(), ec);
+        std::filesystem::remove(path / to_path((*cur_index_node)->path()), ec);
         if (ec) {
           throw std::runtime_error("failed to remove symlink: " + path.string() + ": " + ec.message());
         }
@@ -381,7 +381,7 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
 }
 
 void index::checkout_node(fstree::cache& c, inode::ptr node, const std::filesystem::path& path) {
-  std::filesystem::path full_path = path / node->path();
+  std::filesystem::path full_path = path / to_path(node->path());
   std::error_code ec;
 
   if (node->is_symlink()) {
@@ -723,22 +723,22 @@ void index::merge_recursive(inode::ptr& parent, const std::string& parent_path,
 
   // Collect direct children from current index
   for (const auto& node : current_nodes) {
-    std::filesystem::path node_fs_path(node->path());
+    std::filesystem::path node_fs_path = to_path(node->path());
     std::filesystem::path node_parent_path = node_fs_path.parent_path();
 
     if ((parent_path.empty() && (node_parent_path.empty() || node_parent_path == ".")) ||
-        (!parent_path.empty() && node_parent_path == parent_path)) {
+        (!parent_path.empty() && node_parent_path == to_path(parent_path))) {
       current_children.push_back(node);
     }
   }
 
   // Collect direct children from other index
   for (const auto& node : other_nodes) {
-    std::filesystem::path node_fs_path(node->path());
+    std::filesystem::path node_fs_path = to_path(node->path());
     std::filesystem::path node_parent_path = node_fs_path.parent_path();
 
     if ((parent_path.empty() && (node_parent_path.empty() || node_parent_path == ".")) ||
-        (!parent_path.empty() && node_parent_path == parent_path)) {
+        (!parent_path.empty() && node_parent_path == to_path(parent_path))) {
       other_children.push_back(node);
     }
   }

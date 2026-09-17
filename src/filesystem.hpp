@@ -1,6 +1,7 @@
 #ifndef FILESYSTEM_HPP
 #define FILESYSTEM_HPP
 
+#include "encoding.hpp"
 #include "inode.hpp"
 
 #include <filesystem>

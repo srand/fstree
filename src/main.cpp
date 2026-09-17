@@ -1,5 +1,6 @@
 #include "argparser.hpp"
 #include "cache.hpp"
+#include "encoding.hpp"
 #include "event.hpp"
 #include "hash.hpp"
 #include "index.hpp"
@@ -22,6 +23,45 @@
 #include <unistd.h>
 #else
 #include <process.h>
+#include <vector>
+
+#include <Windows.h>
+#include <shellapi.h>
+
+namespace {
+
+// argv reaches main() in the active code page, which cannot represent every
+// path the filesystem can name. Rebuild it from the wide command line so that
+// arguments enter fstree as UTF-8, like every other path it handles.
+class utf8_args {
+ public:
+  utf8_args() {
+    int argc = 0;
+    LPWSTR* wargv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    if (!wargv) return;
+
+    _args.reserve(argc);
+    for (int i = 0; i < argc; i++) {
+      _args.push_back(fstree::from_wide(wargv[i]));
+    }
+    LocalFree(wargv);
+
+    _argv.reserve(_args.size() + 1);
+    for (auto& arg : _args) {
+      _argv.push_back(arg.data());
+    }
+    _argv.push_back(nullptr);
+  }
+
+  int argc() const { return static_cast<int>(_args.size()); }
+  char** argv() { return _argv.data(); }
+
+ private:
+  std::vector<std::string> _args;
+  std::vector<char*> _argv;
+};
+
+}  // namespace
 #endif
 
 int usage() {
@@ -375,6 +415,14 @@ int cmd_fstree(const fstree::argparser& args) {
 }
 
 int main(int argc, char* argv[]) {
+#ifdef _WIN32
+  utf8_args wide_args;
+  if (wide_args.argc() > 0) {
+    argc = wide_args.argc();
+    argv = wide_args.argv();
+  }
+#endif
+
   try {
     if (argc < 2) {
       return usage();

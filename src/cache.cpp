@@ -200,7 +200,7 @@ void cache::create_file(const std::filesystem::path& root, const inode::ptr& ino
   }
   fclose(fp);
 
-  std::filesystem::copy_file(root / inode->path(), tmp, std::filesystem::copy_options::overwrite_existing, ec);
+  std::filesystem::copy_file(root / to_path(inode->path()), tmp, std::filesystem::copy_options::overwrite_existing, ec);
   if (ec) {
     std::error_code remove_ec;
     std::filesystem::remove(tmp, remove_ec);
@@ -563,7 +563,7 @@ void cache::evict() {
       wg.add(1);
       get_pool().enqueue([this, entry, &wg]() {
         try {
-          evict_subdir(_objectdir / entry->path());
+          evict_subdir(_objectdir / to_path(entry->path()));
           wg.done();
         }
         catch (const std::exception& e) {
@@ -613,7 +613,7 @@ void cache::evict_subdir(const std::filesystem::path& dir) {
     fstree::stat status;
 
     try {
-      fstree::lstat(dir / inode->path(), status);
+      fstree::lstat(dir / to_path(inode->path()), status);
     }
     catch (const std::exception& e) {
       // The object has likely been removed by another thread, continue with the next object.
@@ -628,14 +628,14 @@ void cache::evict_subdir(const std::filesystem::path& dir) {
     }
 
     std::error_code ec;
-    std::filesystem::remove(dir / inode->path(), ec);
+    std::filesystem::remove(dir / to_path(inode->path()), ec);
     if (ec) {
       throw std::runtime_error("failed to remove cache object: " + inode->hash().string() + ": " + ec.message());
     }
 
     size -= inode->size();
 
-    event("cache::evict", (dir / inode->path()).string());
+    event("cache::evict", to_utf8(dir / to_path(inode->path())));
   }
 }
 

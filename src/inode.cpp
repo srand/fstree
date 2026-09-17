@@ -1,4 +1,5 @@
 #include "inode.hpp"
+#include "filesystem.hpp"
 #include "hash.hpp"
 
 #include <algorithm>
@@ -70,12 +71,12 @@ void inode::set_last_write_time(time_type last_write_time) { _last_write_time = 
 // Target methods
 const std::string& inode::target() const { return _target; }
 
-std::filesystem::path inode::target_path() const { return std::filesystem::path(_target).make_preferred(); }
+std::filesystem::path inode::target_path() const { return to_path(_target).make_preferred(); }
 
 // Path methods
 const std::string& inode::path() const { return _path; }
 
-std::string inode::name() const { return std::filesystem::path(_path).filename().string(); }
+std::string inode::name() const { return to_utf8(to_path(_path).filename()); }
 
 const inode::ptr& inode::parent() const { return _parent; }
 
@@ -242,10 +243,10 @@ std::istream& operator>>(std::istream& is, inode& inode) {
       if (!is) throw std::runtime_error("failed reading tree: " + inode.hash().string() + ": " + std::strerror(errno));
     }
 
-    std::filesystem::path inode_path = inode.path();
-    inode_path /= path;
+    std::filesystem::path inode_path = to_path(inode.path());
+    inode_path /= to_path(path);
     auto child = fstree::make_intrusive<fstree::inode>(
-      inode_path.string(), status, inode::time_type(0), 0ul, target, fstree::digest::parse(hash));
+      to_utf8(inode_path), status, inode::time_type(0), 0ul, target, fstree::digest::parse(hash));
     inode.add_child(child);
   }
 

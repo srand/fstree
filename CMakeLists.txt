@@ -185,6 +185,15 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     )
 endif()
 
+if (WIN32)
+    # CommandLineToArgvW, used to read the command line as UTF-16.
+    target_link_libraries(
+        fstreebin
+        PRIVATE
+            shell32
+    )
+endif()
+
 install(
     TARGETS
         fstreebin

@@ -10,6 +10,12 @@
 
 namespace fstree {
 
+// POSIX filenames are opaque byte strings and std::filesystem::path stores them
+// verbatim, so no conversion is needed or wanted here: a name that is not valid
+// UTF-8 must survive the round trip unchanged.
+std::filesystem::path to_path(const std::string& utf8) { return std::filesystem::path(utf8); }
+std::string to_utf8(const std::filesystem::path& path) { return path.string(); }
+
 void lstat(const std::filesystem::path& path, stat& status_out) {
   // Stat new file and update inode
   struct ::stat st;

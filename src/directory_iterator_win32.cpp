@@ -1,6 +1,7 @@
 #ifdef _WIN32
 
 #include "directory_iterator.hpp"
+#include "encoding.hpp"
 #include "thread_pool.hpp"
 #include "wait_group.hpp"
 
@@ -22,26 +23,32 @@ void sorted_directory_iterator::read_directory(
   fstree::wait_group wg;
 
   DWORD error;
-  WIN32_FIND_DATAA result;
+  WIN32_FIND_DATAW result;
   HANDLE handle;
 
-  // Iterate directory contents and create inodes
-  handle = FindFirstFileA((abs.string() + "\\*").c_str(), &result);
+  // Iterate directory contents and create inodes. The wide entry points are
+  // required: the narrow ones report names through the active code page, which
+  // replaces every character the code page cannot represent.
+  handle = FindFirstFileW((abs.native() + L"\\*").c_str(), &result);
   if (INVALID_HANDLE_VALUE == handle) {
     error = GetLastError();
     std::error_code ec(error, std::system_category());
-    throw std::runtime_error("failed to traverse directory: " + rel.string() + ": " + ec.message());
+    throw std::runtime_error("failed to traverse directory: " + to_utf8(rel) + ": " + ec.message());
   }
 
   do {
-    std::string name = result.cFileName;
-    std::filesystem::path path = rel / name;
-    std::filesystem::path path_abs = abs / name;
+    // Keep the name in its native UTF-16 form to build paths from, and convert
+    // to UTF-8 once for the inode, which stores paths in that encoding.
+    const std::wstring name = result.cFileName;
 
     // Skip . and ..
-    if (name == "." || name == ".." || name == ".fstree") {
+    if (name == L"." || name == L".." || name == L".fstree") {
       continue;
     }
+
+    std::filesystem::path path = rel / name;
+    std::filesystem::path path_abs = abs / name;
+    const std::string utf8_path = to_utf8(path);
 
     // Get file type
     fs::file_type type;
@@ -56,7 +63,7 @@ void sorted_directory_iterator::read_directory(
     }
 
     // Skip ignored directories
-    if (type == fs::file_type::directory && ignores.match(path.string())) {
+    if (type == fs::file_type::directory && ignores.match(utf8_path)) {
       continue;
     }
 
@@ -84,13 +91,13 @@ void sorted_directory_iterator::read_directory(
     fs::path target;
     if (type == fs::file_type::symlink) {
       std::error_code ec;
-      target = fs::read_symlink(abs / name, ec);
+      target = fs::read_symlink(path_abs, ec);
       if (ec) {
-        throw std::runtime_error("failed to read symlink: " + (abs / name).string() + ": " + ec.message());
+        throw std::runtime_error("failed to read symlink: " + to_utf8(path_abs) + ": " + ec.message());
       }
     }
 
-    inode::ptr node = fstree::make_intrusive<fstree::inode>(path.string(), status, mtime, size, target.string());
+    inode::ptr node = fstree::make_intrusive<fstree::inode>(utf8_path, status, mtime, size, to_utf8(target));
     {
       std::lock_guard<std::mutex> lock(_mutex);
       _inodes.push_back(node);
@@ -100,10 +107,10 @@ void sorted_directory_iterator::read_directory(
     // Recurse if it's a directory
     if (_recursive && type == fs::file_type::directory) {
       wg.add(1);
-      _pool->enqueue_or_run([this, abs, name, path, node, ignores, &wg] {
+      _pool->enqueue_or_run([this, path_abs, path, node, ignores, &wg] {
         try {
           inode::ptr node_c = intrusive_ptr<inode>(node);
-          read_directory(abs / name, path, node_c, ignores);
+          read_directory(path_abs, path, node_c, ignores);
           wg.done();
         }
         catch (const std::exception& e) {
@@ -111,7 +118,7 @@ void sorted_directory_iterator::read_directory(
         }
       });
     }
-  } while (FindNextFileA(handle, &result));
+  } while (FindNextFileW(handle, &result));
 
   FindClose(handle);
 
