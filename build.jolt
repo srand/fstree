@@ -11,6 +11,7 @@ from jolt.pkgs import googletest
 from jolt.pkgs import ssl
 
 import functools
+import json
 import os
 import platform
 import yaml
@@ -138,6 +139,62 @@ class Tests(Test):
         ---
         """
         self.tools.run("fstree_test")
+
+    def test_irregular_bytes_in_event_paths(self):
+        """Test arbitrary filename bytes survive checkout and produce UTF-8 JSON."""
+        if os.name != "posix":
+            self.skipTest("byte-oriented filesystem paths require POSIX")
+
+        filenames = [
+            b"invalid-\xff",
+            b"truncated-\xe2\x82",
+            b"continuation-\x80",
+        ]
+
+        with self.tools.tmpdir("irregular-bytes") as tmp, self.tools.cwd(tmp):
+            tmp_bytes = os.fsencode(tmp)
+            source = os.path.join(tmp_bytes, b"source")
+            actual = os.path.join(tmp_bytes, b"actual")
+            os.mkdir(source)
+            os.mkdir(actual)
+
+            for filename in filenames:
+                with open(os.path.join(source, filename), "wb") as stream:
+                    stream.write(filename)
+
+            invocation = 0
+
+            def run_json(*args):
+                nonlocal invocation
+                stderr_path = os.path.join(tmp, "events-{}.json".format(invocation))
+                invocation += 1
+                stdout = self.tools.run(
+                    "fstree --json --cache cache {} 2> {}", " ".join(args), stderr_path
+                )
+                with open(stderr_path, "rb") as stream:
+                    stderr_bytes = stream.read()
+                try:
+                    stderr = stderr_bytes.decode("utf-8")
+                except UnicodeDecodeError as error:
+                    context = stderr_bytes[max(0, error.start - 80):error.end + 80]
+                    raise AssertionError(
+                        "event stream is not UTF-8 at byte {}: {!r}".format(error.start, context)
+                    ) from error
+                events = [json.loads(line) for line in stderr.splitlines()]
+                self.assertTrue(events)
+                return stdout.strip(), events
+
+            tree, write_events = run_json("write-tree", "source")
+            _, checkout_events = run_json("checkout", tree, "actual")
+
+            actual_filenames = set(os.listdir(actual)) - {b".fstree"}
+            self.assertEqual(actual_filenames, set(filenames))
+            event_paths = [
+                event.get("path", "").encode("latin-1")
+                for event in write_events + checkout_events
+            ]
+            for filename in filenames:
+                self.assertTrue(any(filename in path for path in event_paths), repr(filename))
 
     def runner(func):
 

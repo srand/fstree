@@ -216,6 +216,7 @@ if (fstree_BUILD_TESTS)
     add_executable(
         fstree_test
         test/test_config.cpp
+        test/test_event.cpp
         test/test_glob.cpp
         test/test_index_glob.cpp
         test/test_iterator.cpp
