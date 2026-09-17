@@ -200,57 +200,43 @@ jobs:
       id: date
       run: echo ::set-output name=date::$(date +%y.%m)
     - name: Create release
-      id: create_release
-      uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.date.outputs.date }}.${{ github.run_number }}
-        release_name: ${{ steps.date.outputs.date }}.${{ github.run_number }}
-        body: |
-          This is the release of the ${{ github.run_number }} build.
-        draft: false
-        prerelease: false
-    - name: Upload wheel assets
+        TAG: ${{ steps.date.outputs.date }}.${{ github.run_number }}
+      run: |
+        if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          echo "Release $TAG already exists, reusing it"
+        else
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --notes "This is the release of the ${{ github.run_number }} build."
+        fi
+    - name: Upload release assets
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         TAG: ${{ steps.date.outputs.date }}.${{ github.run_number }}
       run: |
         shopt -s nullglob
-        for wheel in dist/*.whl; do
-          gh release upload "$TAG" "$wheel" --repo "$GITHUB_REPOSITORY" --clobber
+        upload() {
+          local asset="$1"
+          local attempt
+          for attempt in 1 2 3; do
+            if gh release upload "$TAG" "$asset" --repo "$GITHUB_REPOSITORY" --clobber; then
+              return 0
+            fi
+            echo "::warning::Upload of $asset failed (attempt $attempt/3)"
+            sleep $(( attempt * 15 ))
+          done
+          return 1
+        }
+        for asset in dist/*.whl fstree-windows-x86_64.exe fstree-linux-x86_64 fstree-darwin-x86_64; do
+          upload "$asset"
         done
-    - name: Upload release asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: fstree-windows-x86_64.exe
-        asset_name: fstree-windows-x86_64.exe
-        asset_content_type: application/octet-stream
-    - name: Upload release asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: fstree-linux-x86_64
-        asset_name: fstree-linux-x86_64
-        asset_content_type: application/octet-stream
-    - name: Upload release asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: fstree-darwin-x86_64
-        asset_name: fstree-darwin-x86_64
-        asset_content_type: application/octet-stream
     - name: Release to PyPI
+      if: ${{ !cancelled() }}
       env:
         TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
       run: |
         python -m twine check dist/*.whl
-        python -m twine upload dist/*.whl
+        python -m twine upload --skip-existing dist/*.whl
