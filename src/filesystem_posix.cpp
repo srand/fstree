@@ -73,20 +73,10 @@ std::filesystem::path cache_path() {
 }
 
 bool touch(const std::filesystem::path& path) {
-  int fd = open(path.c_str(), O_WRONLY, 0644);
-  if (fd == -1) {
-    return false;
-  }
-
-  // Update the access and modification time
-  int ret = futimens(fd, NULL);
-  if (ret != 0) {
-    ::close(fd);
-    return false;
-  }
-
-  ::close(fd);
-  return true;
+  // Update the access and modification time in a single call, rather than
+  // opening the file to do it. The cache touches every object of a workspace
+  // each time it is written. Fails, like opening, if the file does not exist.
+  return utimensat(AT_FDCWD, path.c_str(), NULL, 0) == 0;
 }
 
 bool link_file(const std::filesystem::path& from, const std::filesystem::path& to) {
