@@ -3,6 +3,9 @@
 #include "remote.hpp"
 #include "url.hpp"
 
+#include <mutex>
+#include <vector>
+
 namespace fstree {
 
 class remote_http : public remote {
@@ -36,6 +39,15 @@ class remote_http : public remote {
 
  private:
   url _remote_url;
+
+  // Easy handle on loan from the pool below.
+  class handle;
+
+  // Idle curl easy handles. Each keeps its connections to the remote open,
+  // so reusing them saves setting up a connection, and a TLS session, for
+  // every request.
+  std::mutex _handles_mutex;
+  std::vector<void*> _handles;
 };
 
 }  // namespace fstree

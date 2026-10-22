@@ -9,6 +9,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <stdexcept>
 
 #include <curl/curl.h>
@@ -16,27 +17,6 @@
 namespace fstree {
 
 namespace {
-
-// RAII wrapper for CURL
-class CURLHandle {
- public:
-  CURLHandle() : handle_(curl_easy_init()) {
-    if (!handle_) {
-      throw std::runtime_error("Failed to initialize CURL");
-    }
-  }
-
-  ~CURLHandle() {
-    if (handle_) {
-      curl_easy_cleanup(handle_);
-    }
-  }
-
-  CURL* get() const { return handle_; }
-
- private:
-  CURL* handle_;
-};
 
 // Callback to write data to a file
 size_t FileWriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
@@ -60,9 +40,53 @@ size_t WriteToNothing(void* contents, size_t size, size_t nmemb, void* userp) {
 }
 }  // namespace
 
+// An easy handle on loan from the remote's pool, returned when destroyed.
+class remote_http::handle {
+ public:
+  explicit handle(remote_http& remote) : _remote(remote), _handle(nullptr) {
+    {
+      std::lock_guard<std::mutex> lock(_remote._handles_mutex);
+      if (!_remote._handles.empty()) {
+        _handle = static_cast<CURL*>(_remote._handles.back());
+        _remote._handles.pop_back();
+      }
+    }
+
+    if (!_handle) {
+      _handle = curl_easy_init();
+      if (!_handle) {
+        throw std::runtime_error("Failed to initialize CURL");
+      }
+    }
+  }
+
+  ~handle() {
+    // Resetting clears the options of the previous request but keeps the
+    // handle's connections open for the next one.
+    curl_easy_reset(_handle);
+
+    std::lock_guard<std::mutex> lock(_remote._handles_mutex);
+    _remote._handles.push_back(_handle);
+  }
+
+  handle(const handle&) = delete;
+  handle& operator=(const handle&) = delete;
+
+  CURL* get() const { return _handle; }
+
+ private:
+  remote_http& _remote;
+  CURL* _handle;
+};
+
 remote_http::remote_http(const url& remote_url) : _remote_url(remote_url) { curl_global_init(CURL_GLOBAL_DEFAULT); }
 
-remote_http::~remote_http() { curl_global_cleanup(); }
+remote_http::~remote_http() {
+  for (void* handle : _handles) {
+    curl_easy_cleanup(static_cast<CURL*>(handle));
+  }
+  curl_global_cleanup();
+}
 
 // Returns true if the object with the given hash is present in the remote.
 bool remote_http::has_object(const fstree::digest& hash) { return head(hash); }
@@ -85,7 +109,7 @@ void remote_http::has_objects(const std::vector<fstree::digest>& hashes, std::ve
 // Send the object with the given hash and path to the remote.
 void remote_http::write_object(const fstree::digest& hash, const std::filesystem::path& path) {
   std::string url = url_path(hash);
-  CURLHandle curl;
+  handle curl(*this);
 
   // Open input file
   std::ifstream infile(path, std::ios::binary);
@@ -127,7 +151,7 @@ void remote_http::write_object(const fstree::digest& hash, const std::filesystem
 void remote_http::read_object(
     const fstree::digest& hash, const std::filesystem::path& path, const std::filesystem::path& temp) {
   std::string url = url_path(hash);
-  CURLHandle curl;
+  handle curl(*this);
 
   // Create a temporary file using mkstemp
   std::filesystem::path temp_path = temp;
@@ -182,7 +206,7 @@ std::string remote_http::url_path(const fstree::digest& hash) const {
 bool remote_http::head(const fstree::digest& hash) {
   try {
     std::string url = url_path(hash);
-    CURLHandle curl;
+    handle curl(*this);
 
     curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl.get(), CURLOPT_NOBODY, 1L);  // HEAD request
