@@ -21,6 +21,9 @@
 #ifndef _WIN32
 #include <fcntl.h>
 #include <unistd.h>
+#ifdef __linux__
+#include <sys/syscall.h>
+#endif
 #else
 #include <process.h>
 #include <vector>
@@ -102,6 +105,32 @@ std::string rfc3339(std::chrono::nanoseconds since_epoch) {
 
 std::filesystem::path current_path() { return std::filesystem::current_path(); }
 
+#ifndef _WIN32
+// Closes all file descriptors from the given one up, so that a child process
+// does not keep the parent's files and pipes open. Only async-signal-safe
+// calls are made, as it runs between fork and exec.
+static void close_from(int lowfd) {
+#ifdef __linux__
+  // close_range, since Linux 5.9, closes them in one call. Its number is the
+  // same on all architectures, and older headers do not define it.
+#ifndef SYS_close_range
+#define SYS_close_range 436
+#endif
+  if (syscall(SYS_close_range, lowfd, ~0U, 0) == 0) {
+    return;
+  }
+#endif
+
+  // Otherwise close every possible descriptor, which with a high limit on
+  // open files, such as 2^19, takes as many calls.
+  long maxfd = sysconf(_SC_OPEN_MAX);
+  if (maxfd < 0) maxfd = 1024;
+  for (int fd = lowfd; fd < maxfd; ++fd) {
+    close(fd);
+  }
+}
+#endif
+
 // Run cache eviction in background in a new process
 bool spawn_evict_process(
     std::string cmd,
@@ -131,11 +160,7 @@ bool spawn_evict_process(
       if (fd > STDERR_FILENO) close(fd);
     }
 
-    long maxfd = sysconf(_SC_OPEN_MAX);
-    if (maxfd < 0) maxfd = 1024;
-    for (int fd = STDERR_FILENO + 1; fd < maxfd; ++fd) {
-      close(fd);
-    }
+    close_from(STDERR_FILENO + 1);
 
     execlp(
         cmd.c_str(), cmd.c_str(), "evict", "--cache", cachedir.c_str(), "--cache-size", cachesize_str.c_str(),
