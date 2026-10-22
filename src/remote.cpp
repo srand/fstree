@@ -1,5 +1,7 @@
 #include "remote.hpp"
 
+#include "hash.hpp"
+
 #ifdef FSTREE_ENABLE_JOLT_REMOTE
 #include "remote_jolt.hpp"
 #endif
@@ -9,8 +11,22 @@
 #endif
 
 #include <memory>
+#include <stdexcept>
 
 namespace fstree {
+
+void verify_download(const fstree::digest& hash, const std::filesystem::path& file) {
+  if (hash.alg() != fstree::hash_function) {
+    return;
+  }
+
+  fstree::digest actual = hashsum_hex_file(file);
+  if (!(actual == hash)) {
+    std::error_code ec;
+    std::filesystem::remove(file, ec);
+    throw std::runtime_error("downloaded object does not match its digest: " + hash.string() + ": got " + actual.string());
+  }
+}
 
 // remote::create
 

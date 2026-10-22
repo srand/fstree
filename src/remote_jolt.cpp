@@ -131,6 +131,10 @@ void remote_jolt::read_object(
 
   fclose(file);
 
+  // The service checks objects when they are written, but they may have
+  // been damaged in its storage since.
+  verify_download(hash, temp_path);
+
   // Move the temporary file to the final path
   std::error_code ec;
   if (!std::filesystem::exists(path.parent_path(), ec)) {

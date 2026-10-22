@@ -12,6 +12,13 @@ namespace fstree {
 
 class url;
 
+// Checks that the content of a file downloaded from a remote matches the
+// digest it was requested by, before it is stored in the cache. Every later
+// checkout trusts an object found in the cache. If the content does not
+// match, the file is removed and an exception thrown. Only digests of the
+// algorithm in use can be computed, others are accepted unchecked.
+void verify_download(const fstree::digest& hash, const std::filesystem::path& file);
+
 class remote {
  public:
   static std::unique_ptr<remote> create(const url& address);
