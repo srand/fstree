@@ -268,7 +268,15 @@ void cache::create_dirtree(inode::ptr& node) {
     std::filesystem::remove(tmp, ec);
     throw std::runtime_error("failed to write to temporary file: " + tmp.string() + ": " + std::strerror(err));
   }
-  fclose(fp);
+
+  // Closing flushes what fwrite buffered, which for a tree object is usually
+  // all of it. The file is hashed below, so a failure here would otherwise
+  // store the truncated tree under its own digest.
+  if (fclose(fp) != 0) {
+    int err = errno;
+    std::filesystem::remove(tmp, ec);
+    throw std::runtime_error("failed to write to temporary file: " + tmp.string() + ": " + std::strerror(err));
+  }
 
   // Then calculate the hash of the file and move it to the object directory.
   fstree::digest hash = hashsum_hex_file(tmp);
