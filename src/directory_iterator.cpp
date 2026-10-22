@@ -21,27 +21,9 @@ sorted_directory_iterator::sorted_directory_iterator(
     // Read the root directory and maybe recursively read the subdirectories
     read_directory(path, "", _root, ignores);
 
-    // Sort the inodes by path
+    // Sort the inodes by path. Ignored files and directories were already
+    // left out by read_directory.
     std::sort(_inodes.begin(), _inodes.end(), _compare);
-
-    // Filter out ignored files and directories from the list in reverse order.
-    for (auto it = _inodes.rbegin(); it != _inodes.rend(); ++it) {
-      // Checking directories already in the read_directory function
-      if ((*it)->is_directory()) {
-        continue;
-      }
-
-      if (!(*it)->is_unignored() && _ignores.match((*it)->path())) {
-        (*it)->ignore();
-      }
-      else {
-        (*it)->unignore();
-      }
-    }
-    // Remove all ignored files and directories
-    _inodes.erase(
-        std::remove_if(_inodes.begin(), _inodes.end(), [](const inode::ptr& inode) { return inode->is_ignored(); }),
-        _inodes.end());
 }
 
 sorted_directory_iterator::~sorted_directory_iterator() {

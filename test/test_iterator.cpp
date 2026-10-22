@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <set>
 
 using namespace fstree;
@@ -622,4 +623,35 @@ TEST_F(DirectoryIteratorTest, InodeChildren) {
     EXPECT_EQ(child_paths.size(), 2);
     EXPECT_EQ(child_paths.count("dir/file1.txt"), 1);
     EXPECT_EQ(child_paths.count("dir/subdir"), 1);
+}
+
+TEST_F(DirectoryIteratorTest, IgnoredFilesRemainMarkedChildren) {
+    CreateFile("keep.txt");
+    CreateFile("drop.log");
+    CreateFile("sub/keep.txt");
+    CreateFile("sub/drop.log");
+    CreateFile("excluded/keep.txt");
+
+    glob_list ignores;
+    ignores.add("*.log");
+    ignores.add("excluded/");
+    ignores.finalize();
+
+    sorted_directory_iterator it(test_dir, ignores);
+
+    // Ignored files and directories are left out of the list.
+    EXPECT_EQ(GetPaths(it), (std::set<std::string>{"keep.txt", "sub", "sub/keep.txt"}));
+
+    // Ignored files remain children of their directory, marked as ignored,
+    // while ignored directories are not read at all.
+    std::set<std::string> ignored, kept;
+    std::function<void(const inode::ptr&)> visit = [&](const inode::ptr& node) {
+        for (const auto& child : *node) {
+            (child->is_ignored() ? ignored : kept).insert(NormalizePath(child->path()));
+            visit(child);
+        }
+    };
+    visit(it.root());
+    EXPECT_EQ(ignored, (std::set<std::string>{"drop.log", "sub/drop.log"}));
+    EXPECT_EQ(kept, (std::set<std::string>{"keep.txt", "sub", "sub/keep.txt"}));
 }

@@ -104,6 +104,15 @@ void sorted_directory_iterator::read_directory(
     // Only this call adds children to the parent, so that needs no lock
     inode::ptr node = fstree::make_intrusive<inode>(relpath.string(), status, mtime, st.st_size, target);
     parent->add_child(node);
+
+    // An ignored file remains a child of its directory, marked as ignored,
+    // but is left out of the list. Matching it here rather than after the
+    // walk spreads the matching over the threads reading directories.
+    if (entry->d_type != DT_DIR && ignores.match(node->path())) {
+      node->ignore();
+      continue;
+    }
+
     entries.push_back(node);
 
     // Recurse if it's a directory
