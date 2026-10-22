@@ -9,6 +9,7 @@
 #include "thread_pool.hpp"
 #include "wait_group.hpp"
 
+#include <algorithm>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -66,46 +67,81 @@ void cache::add(fstree::index& index) {
   pool& pool = get_pool();
   wait_group wg;
 
-  // List of dirty directory inodes
-  std::vector<inode::ptr> dirty_dirs;
-
+  // Sort the index into changed files, which must be hashed, and unchanged
+  // files and directories, whose objects need only be found in the cache.
+  std::vector<inode::ptr> dirty_files, clean_files, dirs;
   for (const auto& inode : index) {
     if (inode->is_file()) {
-      wg.add(1);
-      pool.enqueue([this, &index, inode, &wg]() {
-        try {
-          if (inode->is_dirty()) {
-            inode->rehash(index.root_path());
-            if (!has_object(inode->hash())) {
-              event("cache::add", inode->path(), "dirty");
-              create_file(index.root_path(), inode);
-            }
-          }
-          else {
-            if (!has_object(inode->hash())) {
-              event("cache::add", inode->path(), "missing");
-              create_file(index.root_path(), inode);
-            }
-          }
-
-          wg.done();
-        }
-        catch (const std::exception& e) {
-          wg.exception(e);
-        }
-      });
+      (inode->is_dirty() ? dirty_files : clean_files).push_back(inode);
     }
     else if (inode->is_directory()) {
-      if (inode->is_dirty()) {
-        dirty_dirs.push_back(inode);
-      }
-      else if (!has_tree(inode->hash())) {
-        dirty_dirs.push_back(inode);
-      }
+      dirs.push_back(inode);
     }
   }
 
+  // Whether the tree object of each directory must be created
+  std::vector<char> dirs_missing(dirs.size(), 0);
+
+  // Runs a function in the pool, reporting exceptions to the wait group
+  const auto run = [&pool, &wg](std::function<void()> f) {
+    wg.add(1);
+    pool.enqueue([&wg, f = std::move(f)]() {
+      try {
+        f();
+        wg.done();
+      }
+      catch (const std::exception& e) {
+        wg.exception(e);
+      }
+    });
+  };
+
+  // Hash each changed file in a task of its own, as files can be large.
+  for (const auto& inode : dirty_files) {
+    run([this, &index, inode]() {
+      inode->rehash(index.root_path());
+      if (!has_object(inode->hash())) {
+        event("cache::add", inode->path(), "dirty");
+        create_file(index.root_path(), inode);
+      }
+    });
+  }
+
+  // Finding an object takes a single system call, which costs less than
+  // scheduling a task for it, so unchanged entries are checked in batches.
+  constexpr size_t batch_size = 64;
+
+  for (size_t begin = 0; begin < clean_files.size(); begin += batch_size) {
+    size_t end = std::min(begin + batch_size, clean_files.size());
+    run([this, &index, &clean_files, begin, end]() {
+      for (size_t i = begin; i < end; i++) {
+        const auto& inode = clean_files[i];
+        if (!has_object(inode->hash())) {
+          event("cache::add", inode->path(), "missing");
+          create_file(index.root_path(), inode);
+        }
+      }
+    });
+  }
+
+  for (size_t begin = 0; begin < dirs.size(); begin += batch_size) {
+    size_t end = std::min(begin + batch_size, dirs.size());
+    run([this, &dirs, &dirs_missing, begin, end]() {
+      for (size_t i = begin; i < end; i++) {
+        dirs_missing[i] = dirs[i]->is_dirty() || !has_tree(dirs[i]->hash());
+      }
+    });
+  }
+
   wg.wait_rethrow();
+
+  // List of dirty directory inodes, in index order
+  std::vector<inode::ptr> dirty_dirs;
+  for (size_t i = 0; i < dirs.size(); i++) {
+    if (dirs_missing[i]) {
+      dirty_dirs.push_back(dirs[i]);
+    }
+  }
 
   // Create directory nodes in reverse order
   for (auto it = dirty_dirs.rbegin(); it != dirty_dirs.rend(); ++it) {
