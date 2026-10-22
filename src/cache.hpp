@@ -5,8 +5,9 @@
 #include "lock_file.hpp"
 #include "remote.hpp"
 
-#include <string>
 #include <filesystem>
+#include <string>
+#include <vector>
 
 namespace fstree {
 
@@ -80,6 +81,13 @@ class cache {
   void create_dirtree(inode::ptr& node);
   void create_file(const std::filesystem::path& root, const inode::ptr& inode);
   void evict_subdir(const std::filesystem::path& dir);
+
+  // Push the trees and objects of the index that are missing in a remote that
+  // cannot look up trees, checking each one individually.
+  void push_without_tree_lookup(
+      const fstree::index& index,
+      fstree::remote& remote,
+      const fstree::remote::missing_callback& upload_missing);
 
   std::filesystem::path file_path(const fstree::digest& hash);
   std::filesystem::path tree_path(const fstree::digest& hash);

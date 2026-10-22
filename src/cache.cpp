@@ -376,6 +376,52 @@ void cache::push_tree(fstree::remote& remote, const fstree::digest& hash) {
   remote.write_object(hash, object_path);
 }
 
+void cache::push_without_tree_lookup(
+    const fstree::index& index,
+    fstree::remote& remote,
+    const fstree::remote::missing_callback& upload_missing) {
+  pool& pool = get_pool();
+  wait_group wg;
+  std::mutex mutex;
+  std::vector<fstree::digest> missing_trees, missing_objects;
+
+  // Identical files and directories share a digest, check each only once
+  std::unordered_set<std::string> checked;
+
+  const auto check = [&](const fstree::digest& hash, bool is_tree) {
+    if (!checked.insert(hash.string()).second) return;
+
+    // Each check is a request to the remote, so run them in parallel
+    wg.add(1);
+    pool.enqueue([&, hash, is_tree]() {
+      try {
+        if (!remote.has_object(hash)) {
+          std::lock_guard<std::mutex> lock(mutex);
+          (is_tree ? missing_trees : missing_objects).push_back(hash);
+        }
+        wg.done();
+      }
+      catch (const std::exception& e) {
+        wg.exception(e);
+      }
+    });
+  };
+
+  check(index.root()->hash(), true);
+  for (const auto& inode : index) {
+    if (inode->is_directory()) {
+      check(inode->hash(), true);
+    }
+    else if (inode->is_file()) {
+      check(inode->hash(), false);
+    }
+  }
+
+  wg.wait_rethrow();
+
+  upload_missing(missing_trees, missing_objects);
+}
+
 void cache::push(const fstree::index& index, fstree::remote& remote) {
   event("cache::push", index.root()->hash().string(), index.size());
 
@@ -454,30 +500,12 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
       remote.has_tree(check_trees, upload_missing);
     }
     catch (const fstree::unsupported_operation& e) {
-      // If the has_tree method is unsupported, check all objects in the index manually
-      std::vector<fstree::digest> missing_trees, missing_objects;
-
-      // Check the root trees
-      for (const auto& tree_hash : check_trees) {
-        if (!remote.has_object(tree_hash)) {
-          missing_trees.push_back(tree_hash);
-        }
-      }
-
-      // Check all objects in the index
-      for (const auto& inode : index) {
-        bool found = remote.has_object(inode->hash());
-        if (!found) {
-          if (inode->is_directory()) {
-            missing_trees.push_back(inode->hash());
-          }
-          else if (inode->is_file()) {
-            missing_objects.push_back(inode->hash());
-          }
-        }
-      }
-
-      upload_missing(missing_trees, missing_objects);
+      // The remote cannot look up trees, so check every tree and object in the
+      // index individually instead. That covers the whole tree in one pass, so
+      // there are no further rounds once the missing ones are uploaded.
+      push_without_tree_lookup(index, remote, upload_missing);
+      wg.wait_rethrow();
+      return;
     }
     catch (...) {
       // Uploads already started refer to this frame, let them finish first

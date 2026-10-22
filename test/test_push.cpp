@@ -29,6 +29,7 @@ class fake_remote : public fstree::remote {
  public:
   bool has_object(const fstree::digest& hash) override {
     std::lock_guard<std::mutex> lock(_mutex);
+    _has_object_calls++;
     return _objects.count(hash.string()) > 0;
   }
 
@@ -95,6 +96,11 @@ class fake_remote : public fstree::remote {
     return _uploads_waited_for_lookup;
   }
 
+  int has_object_calls() {
+    std::lock_guard<std::mutex> lock(_mutex);
+    return _has_object_calls;
+  }
+
   int has_tree_calls() {
     std::lock_guard<std::mutex> lock(_mutex);
     return _has_tree_calls;
@@ -131,7 +137,7 @@ class fake_remote : public fstree::remote {
       if (child->is_directory()) {
         check_tree(child->hash(), missing_trees, missing_objects);
       }
-      else if (child->is_file() && !has_object(child->hash())) {
+      else if (child->is_file() && !contains(child->hash())) {
         missing_objects.push_back(child->hash());
       }
     }
@@ -139,13 +145,27 @@ class fake_remote : public fstree::remote {
     tree->clear();
   }
 
+  bool contains(const fstree::digest& hash) {
+    std::lock_guard<std::mutex> lock(_mutex);
+    return _objects.count(hash.string()) > 0;
+  }
+
   std::mutex _mutex;
   std::condition_variable _cv;
   std::map<std::string, std::string> _objects;
   std::map<std::string, int> _writes;
   int _has_tree_calls = 0;
+  int _has_object_calls = 0;
   int _write_count = 0;
   bool _uploads_waited_for_lookup = false;
+};
+
+// Remote that stores objects but cannot look up trees, like an HTTP server.
+class flat_remote : public fake_remote {
+ public:
+  void has_tree(const std::vector<fstree::digest>&, const missing_callback&) override {
+    throw fstree::unsupported_operation("flat_remote::has_tree is not implemented");
+  }
 };
 
 class PushTest : public ::testing::Test {
@@ -238,4 +258,25 @@ TEST_F(PushTest, UploadsWhileLookingUp) {
 
   EXPECT_TRUE(remote.is_complete(tree));
   EXPECT_FALSE(remote.uploads_waited_for_lookup());
+}
+
+TEST_F(PushTest, ChecksEachDigestOnceWithoutTreeLookup) {
+  // Without tree lookups every tree and object is checked individually,
+  // which is a request each, so none may be checked more than once.
+  CreateFile("a/same.txt", "same");
+  CreateFile("b/same.txt", "same");
+  CreateFile("c/d/e/file.txt", "file");
+  CreateFile("c/d/other.txt", "other");
+
+  flat_remote remote;
+  fstree::digest tree = Push(remote);
+
+  EXPECT_TRUE(remote.is_complete(tree));
+
+  // Everything was missing, so each distinct digest was uploaded once.
+  auto writes = remote.writes();
+  for (const auto& [digest, count] : writes) {
+    EXPECT_EQ(1, count) << digest << " uploaded more than once";
+  }
+  EXPECT_EQ(static_cast<int>(writes.size()), remote.has_object_calls());
 }
