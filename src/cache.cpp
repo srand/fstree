@@ -400,29 +400,25 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
   // First add the root tree to be checked
   check_trees.push_back(index.root()->hash());
 
-  do {
-    // Lists of missing child trees and objects for the checked tree
+  // Look up all trees of a round in a single request. Missing trees are looked
+  // up again in the next round, once uploaded, to find which of their children
+  // are missing. The number of rounds thus follows the depth of the tree.
+  while (!check_trees.empty()) {
+    // Lists of missing trees and objects below the checked trees
     std::vector<fstree::digest> missing_trees, missing_objects;
-
-    // Pop the last tree from the list to check
-    fstree::digest tree_hash;
-    {
-      std::lock_guard<std::mutex> lock(check_trees_mutex);
-      tree_hash = check_trees.back();
-      check_trees.pop_back();
-    }
 
     // Query the remote for missing trees and objects
     try {
-      remote.has_tree(tree_hash, missing_trees, missing_objects);
+      remote.has_tree(check_trees, missing_trees, missing_objects);
     }
     catch (const fstree::unsupported_operation& e) {
       // If the has_tree method is unsupported, check all objects in the index manually
 
-      // Check the root tree
-      bool found = remote.has_object(tree_hash);
-      if (!found) {
-        missing_trees.push_back(tree_hash);
+      // Check the root trees
+      for (const auto& tree_hash : check_trees) {
+        if (!remote.has_object(tree_hash)) {
+          missing_trees.push_back(tree_hash);
+        }
       }
 
       // Check all objects in the index
@@ -438,6 +434,9 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
         }
       }
     }
+
+    // Trees uploaded in this round are added for the next round
+    check_trees.clear();
 
     // Write missing objects in parallel
     for (const auto& hash : missing_objects) {
@@ -466,7 +465,7 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
         try {
           push_tree(remote, hash);
 
-          // Add the tree to the list of trees to check now that it's been pushed
+          // Check the tree's children in the next round now that it's been pushed
           std::lock_guard<std::mutex> lock(check_trees_mutex);
           check_trees.push_back(hash);
 
@@ -478,15 +477,8 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
       });
     }
 
-    {
-      std::unique_lock<std::mutex> lock(check_trees_mutex);
-      if (!check_trees.empty()) {
-        continue;
-      }
-    }
-
     wg.wait_rethrow();
-  } while (!check_trees.empty());
+  }
 }
 
 void cache::pull(fstree::index& index, fstree::remote& remote, const fstree::digest& tree_hash) {

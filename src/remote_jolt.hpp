@@ -17,7 +17,7 @@ class remote_jolt : public remote {
   explicit remote_jolt(const url& address);
 
   void has_tree(
-      const fstree::digest& hash,
+      const std::vector<fstree::digest>& hashes,
       std::vector<fstree::digest>& missing_trees,
       std::vector<fstree::digest>& missing_objects) override;
   bool has_object(const fstree::digest& hash) override;

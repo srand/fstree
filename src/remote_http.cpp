@@ -69,7 +69,8 @@ bool remote_http::has_object(const fstree::digest& hash) { return head(hash); }
 
 // Returns lists of trees and objects that are missing in the remote.
 // The missing_trees and missing_objects vectors are filled with the hashes of the missing trees and objects.
-void remote_http::has_tree(const fstree::digest&, std::vector<fstree::digest>&, std::vector<fstree::digest>&) {
+void remote_http::has_tree(
+    const std::vector<fstree::digest>&, std::vector<fstree::digest>&, std::vector<fstree::digest>&) {
   throw fstree::unsupported_operation("remote_http::has_tree is not implemented");
 }
 

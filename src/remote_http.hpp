@@ -16,7 +16,7 @@ class remote_http : public remote {
   // Returns lists of trees and objects that are missing in the remote.
   // The missing_trees and missing_objects vectors are filled with the hashes of the missing trees and objects.
   virtual void has_tree(
-      const fstree::digest& hash,
+      const std::vector<fstree::digest>& hashes,
       std::vector<fstree::digest>& missing_trees,
       std::vector<fstree::digest>& missing_objects) override;
 

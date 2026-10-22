@@ -20,10 +20,13 @@ class remote {
   // Returns true if the object with the given hash is present in the remote.
   virtual bool has_object(const fstree::digest& hash) = 0;
 
-  // Returns lists of trees and objects that are missing in the remote.
+  // Returns lists of trees and objects that are missing in the remote, looking
+  // recursively below each of the given trees.
   // The missing_trees and missing_objects vectors are filled with the hashes of the missing trees and objects.
   virtual void has_tree(
-      const fstree::digest& hash, std::vector<fstree::digest>& missing_trees, std::vector<fstree::digest>& missing_objects) = 0;
+      const std::vector<fstree::digest>& hashes,
+      std::vector<fstree::digest>& missing_trees,
+      std::vector<fstree::digest>& missing_objects) = 0;
 
   // Returns a vector of booleans indicating the presence of objects with the given hashes.
   virtual void has_objects(const std::vector<fstree::digest>& hashes, std::vector<bool>& presence) = 0;

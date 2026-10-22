@@ -150,13 +150,17 @@ void remote_jolt::read_object(
 }
 
 void remote_jolt::has_tree(
-    const fstree::digest& hash, std::vector<fstree::digest>& missing_trees, std::vector<fstree::digest>& missing_objects) {
+    const std::vector<fstree::digest>& hashes,
+    std::vector<fstree::digest>& missing_trees,
+    std::vector<fstree::digest>& missing_objects) {
   // Set up gRPC client
   grpc::ClientContext context;
 
   // Create a HasTree request message
   fstree::HasTreeRequest request;
-  request.add_digest(hash.string());
+  for (const auto& hash : hashes) {
+    request.add_digest(hash.string());
+  }
 
   // Create a response message
   fstree::HasTreeResponse response;

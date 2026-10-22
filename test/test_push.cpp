@@ -37,14 +37,16 @@ class fake_remote : public fstree::remote {
   }
 
   void has_tree(
-      const fstree::digest& hash,
+      const std::vector<fstree::digest>& hashes,
       std::vector<fstree::digest>& missing_trees,
       std::vector<fstree::digest>& missing_objects) override {
     {
       std::lock_guard<std::mutex> lock(_mutex);
       _has_tree_calls++;
     }
-    check_tree(hash, missing_trees, missing_objects);
+    for (const auto& hash : hashes) {
+      check_tree(hash, missing_trees, missing_objects);
+    }
   }
 
   void write_object(const fstree::digest& hash, const std::filesystem::path& path) override {
@@ -177,4 +179,20 @@ TEST_F(PushTest, UploadsEachDigestOnce) {
   for (const auto& [digest, count] : remote.writes()) {
     EXPECT_EQ(1, count) << digest << " uploaded more than once";
   }
+}
+
+TEST_F(PushTest, LooksUpTreesOneLevelAtATime) {
+  // Directories pushed in the same round must be looked up together, so
+  // the number of lookups follows the depth of the tree and not its width.
+  for (int i = 0; i < 5; i++) {
+    CreateFile("dir" + std::to_string(i) + "/file.txt", "file " + std::to_string(i));
+  }
+
+  fake_remote remote;
+  fstree::digest tree = Push(remote);
+
+  EXPECT_TRUE(remote.is_complete(tree));
+
+  // The root is found missing, then its children, then theirs.
+  EXPECT_EQ(3, remote.has_tree_calls());
 }
