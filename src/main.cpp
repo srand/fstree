@@ -308,7 +308,7 @@ int cmd_fstree(const fstree::argparser& args) {
     cache.pull(index, *remote, tree);
 
     // Evict cache in background
-    if (!spawn_evict_process(args.command(), cachedir, cachesize, retention_period, threads)) {
+    if (cache.claim_eviction() && !spawn_evict_process(args.command(), cachedir, cachesize, retention_period, threads)) {
       cache.evict();
     }
 
@@ -345,7 +345,7 @@ int cmd_fstree(const fstree::argparser& args) {
     rindex.checkout(cache, workspace);
     rindex.save(indexfile);
 
-    if (!spawn_evict_process(args.command(), cachedir, cachesize, retention_period, threads)) {
+    if (cache.claim_eviction() && !spawn_evict_process(args.command(), cachedir, cachesize, retention_period, threads)) {
       cache.evict();
     }
 
@@ -393,7 +393,7 @@ int cmd_fstree(const fstree::argparser& args) {
     cache.add(index);
     index.save(indexfile);
 
-    if (!spawn_evict_process(args.command(), cachedir, cachesize, retention_period, threads)) {
+    if (cache.claim_eviction() && !spawn_evict_process(args.command(), cachedir, cachesize, retention_period, threads)) {
       cache.evict();
     }
 
@@ -427,7 +427,7 @@ int cmd_fstree(const fstree::argparser& args) {
     cache.push(index, *remote);
     index.save(indexfile);
 
-    if (!spawn_evict_process(args.command(), cachedir, cachesize, retention_period, threads)) {
+    if (cache.claim_eviction() && !spawn_evict_process(args.command(), cachedir, cachesize, retention_period, threads)) {
       cache.evict();
     }
 

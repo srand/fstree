@@ -642,6 +642,27 @@ void cache::pull(fstree::index& index, fstree::remote& remote, const fstree::dig
   }
 }
 
+bool cache::claim_eviction(std::chrono::seconds interval) {
+  // The time eviction was last claimed is the modification time of a file
+  std::filesystem::path stamp = _objectdir.parent_path() / "evict.stamp";
+  auto now = std::filesystem::file_time_type::clock::now();
+
+  std::error_code ec;
+  auto last = std::filesystem::last_write_time(stamp, ec);
+  if (ec) {
+    // Never claimed
+    std::ofstream create(stamp, std::ios::app);
+  }
+  else if (last <= now && now - last < interval) {
+    // Claimed recently. A time in the future, after the clock was set back,
+    // counts as long ago so that it cannot keep eviction from running.
+    return false;
+  }
+
+  std::filesystem::last_write_time(stamp, now, ec);
+  return true;
+}
+
 void cache::evict() {
   fstree::wait_group wg;
 

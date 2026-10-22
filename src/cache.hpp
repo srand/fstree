@@ -24,6 +24,10 @@ class cache {
   static constexpr size_t default_max_size = 10ULL * 1024 * 1024 * 1024;  // 10 GiB
   static constexpr std::chrono::seconds default_retention = std::chrono::hours(1); 
 
+  // Minimum time between evictions started after other commands. Each
+  // examines every object in the cache.
+  static constexpr std::chrono::seconds eviction_interval = std::chrono::minutes(1);
+
  public:
   cache();
 
@@ -73,6 +77,11 @@ class cache {
 
   // Evict objects from the cache until the size is below the maximum size.
   void evict();
+
+  // Returns true if eviction is due, as it was last claimed longer than the
+  // interval ago, or never, and claims it. Processes sharing the cache thus
+  // evict at most about once per interval.
+  bool claim_eviction(std::chrono::seconds interval = eviction_interval);
 
   std::filesystem::path file_path(const inode::ptr& inode);
   std::filesystem::path tree_path(const inode::ptr& inode);
