@@ -227,6 +227,7 @@ if (fstree_BUILD_TESTS)
         test/test_config.cpp
         test/test_evict.cpp
         test/test_event.cpp
+        test/test_gitignore.cpp
         test/test_glob.cpp
         test/test_index_glob.cpp
         test/test_iterator.cpp

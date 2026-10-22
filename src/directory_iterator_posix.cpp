@@ -57,7 +57,7 @@ void sorted_directory_iterator::read_directory(
     }
 
     // Skip ignored directories
-    if (entry->d_type == DT_DIR && ignores.match(relpath)) {
+    if (entry->d_type == DT_DIR && ignores.match_entry(relpath.string(), true)) {
       continue;
     }
 
@@ -108,7 +108,7 @@ void sorted_directory_iterator::read_directory(
     // An ignored file remains a child of its directory, marked as ignored,
     // but is left out of the list. Matching it here rather than after the
     // walk spreads the matching over the threads reading directories.
-    if (entry->d_type != DT_DIR && ignores.match(node->path())) {
+    if (entry->d_type != DT_DIR && ignores.match_entry(node->path(), false)) {
       node->ignore();
       continue;
     }

@@ -87,7 +87,7 @@ PYBIND11_MODULE(fstree, m) {
             il.add(pattern);
             il.finalize();
         })
-        .def("matches", &fstree::glob_list::match);
+        .def("matches", &fstree::glob_list::match, py::arg("path"), py::arg("is_dir") = false);
 
     // Expose the inode class using smart pointers
     py::class_<fstree::inode, fstree::intrusive_ptr<fstree::inode>>(m, "Inode")

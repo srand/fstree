@@ -23,6 +23,8 @@ TEST(Glob, Add_Simple_Path) {
   EXPECT_TRUE(ignore.match(".git/objects"));
 }
 
+// As in git, everything below an ignored directory is ignored, and a negated
+// pattern cannot re-include it.
 TEST(Glob, Add_Subdir) {
   fstree::glob_list ignore;
   ignore.add("src");
@@ -31,7 +33,8 @@ TEST(Glob, Add_Subdir) {
 
   EXPECT_TRUE(ignore.match("src/main.cpp"));
   EXPECT_TRUE(ignore.match("src/main.h"));
-  EXPECT_FALSE(ignore.match("src/main.o"));
+  EXPECT_TRUE(ignore.match("src/main.o"));
+  EXPECT_FALSE(ignore.match("main.o"));
 }
 
 TEST(Glob, Add_Recursive) {
@@ -171,7 +174,8 @@ TEST(Glob, Negation_Unrelated_Path) {
   EXPECT_FALSE(ignore.match("other.txt"));
 }
 
-// Anchored patterns only match at the root, and so do anchored negations.
+// Anchored patterns only match at the root. A negation cannot re-include a
+// file below the ignored directory, as in git.
 TEST(Glob, Negation_Anchored) {
   fstree::glob_list ignore;
   ignore.add("/build");
@@ -180,23 +184,30 @@ TEST(Glob, Negation_Anchored) {
 
   EXPECT_TRUE(ignore.match("build"));
   EXPECT_TRUE(ignore.match("build/other.txt"));
-  EXPECT_FALSE(ignore.match("build/keep.txt"));
+  EXPECT_TRUE(ignore.match("build/keep.txt"));
   EXPECT_FALSE(ignore.match("sub/build"));
 }
 
-// Trailing slashes are stripped from negated patterns too.
+// A trailing slash makes a negated pattern match directories only, and like
+// any negation it cannot re-include below an ignored directory.
 TEST(Glob, Negation_Trailing_Slash) {
   fstree::glob_list ignore;
   ignore.add("build");
   ignore.add("!build/keep/");
+  ignore.add("*.tmp");
+  ignore.add("!cache.tmp/");
   ignore.finalize();
 
   EXPECT_TRUE(ignore.match("build"));
   EXPECT_TRUE(ignore.match("build/drop"));
-  EXPECT_FALSE(ignore.match("build/keep"));
+  EXPECT_TRUE(ignore.match("build/keep", true));
+  EXPECT_FALSE(ignore.match("cache.tmp", true));
+  EXPECT_TRUE(ignore.match("cache.tmp", false));
+  EXPECT_TRUE(ignore.match("x/cache.tmp", false));
 }
 
-// A negation re-includes a whole subtree, directories included.
+// Re-including a directory does not re-include the files in it, which * still
+// matches, as in git. A subtree is re-included with **.
 TEST(Glob, Negation_Directory_Subtree) {
   fstree::glob_list ignore;
   ignore.add("*");
@@ -204,8 +215,13 @@ TEST(Glob, Negation_Directory_Subtree) {
   ignore.finalize();
 
   EXPECT_TRUE(ignore.match("build"));
-  EXPECT_FALSE(ignore.match("src"));
+  EXPECT_FALSE(ignore.match("src", true));
+  EXPECT_TRUE(ignore.match("src/main.cpp"));
+
+  ignore.add("!src/**");
   EXPECT_FALSE(ignore.match("src/main.cpp"));
+  EXPECT_FALSE(ignore.match("src/sub", true));
+  EXPECT_FALSE(ignore.match("src/sub/x"));
 }
 
 // A backslash escapes a leading '!' so it can be matched literally.

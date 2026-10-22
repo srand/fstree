@@ -481,7 +481,7 @@ std::vector<inode::ptr> index::glob_linear(const std::string& pattern, std::vect
   globber.finalize();
 
   for (const auto& inode : _inodes) {
-    if (globber.match(inode->path())) {
+    if (globber.match(inode->path(), inode->is_directory())) {
       result.push_back(inode);
     }
   }
