@@ -4,6 +4,7 @@
 #include "url.hpp"
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -20,13 +21,15 @@ class remote {
   // Returns true if the object with the given hash is present in the remote.
   virtual bool has_object(const fstree::digest& hash) = 0;
 
-  // Returns lists of trees and objects that are missing in the remote, looking
-  // recursively below each of the given trees.
-  // The missing_trees and missing_objects vectors are filled with the hashes of the missing trees and objects.
-  virtual void has_tree(
-      const std::vector<fstree::digest>& hashes,
-      std::vector<fstree::digest>& missing_trees,
-      std::vector<fstree::digest>& missing_objects) = 0;
+  // Receives the hashes of trees and objects that are missing in the remote.
+  using missing_callback = std::function<void(
+      const std::vector<fstree::digest>& missing_trees, const std::vector<fstree::digest>& missing_objects)>;
+
+  // Finds trees and objects that are missing in the remote, looking recursively
+  // below each of the given trees. The callback is called, on the calling
+  // thread, as soon as the remote reports missing trees and objects, which may
+  // be several times before has_tree returns.
+  virtual void has_tree(const std::vector<fstree::digest>& hashes, const missing_callback& callback) = 0;
 
   // Returns a vector of booleans indicating the presence of objects with the given hashes.
   virtual void has_objects(const std::vector<fstree::digest>& hashes, std::vector<bool>& presence) = 0;

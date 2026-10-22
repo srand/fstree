@@ -7,6 +7,8 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
+#include <condition_variable>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -36,16 +38,32 @@ class fake_remote : public fstree::remote {
     }
   }
 
-  void has_tree(
-      const std::vector<fstree::digest>& hashes,
-      std::vector<fstree::digest>& missing_trees,
-      std::vector<fstree::digest>& missing_objects) override {
+  void has_tree(const std::vector<fstree::digest>& hashes, const missing_callback& callback) override {
     {
       std::lock_guard<std::mutex> lock(_mutex);
       _has_tree_calls++;
     }
+
+    // Report the trees one at a time, as the service streams its responses.
     for (const auto& hash : hashes) {
+      std::vector<fstree::digest> missing_trees, missing_objects;
       check_tree(hash, missing_trees, missing_objects);
+      if (missing_trees.empty() && missing_objects.empty()) {
+        continue;
+      }
+
+      std::unique_lock<std::mutex> lock(_mutex);
+      int writes = _write_count;
+      lock.unlock();
+
+      callback(missing_trees, missing_objects);
+
+      // Uploads should begin while the rest of the response is still
+      // being received. Give them some time to show up.
+      lock.lock();
+      if (!_cv.wait_for(lock, std::chrono::seconds(2), [&] { return _write_count > writes; })) {
+        _uploads_waited_for_lookup = true;
+      }
     }
   }
 
@@ -57,6 +75,8 @@ class fake_remote : public fstree::remote {
     std::lock_guard<std::mutex> lock(_mutex);
     _objects[hash.string()] = content.str();
     _writes[hash.string()]++;
+    _write_count++;
+    _cv.notify_all();
   }
 
   void read_object(const fstree::digest&, const std::filesystem::path&, const std::filesystem::path&) override {
@@ -67,6 +87,12 @@ class fake_remote : public fstree::remote {
   std::map<std::string, int> writes() {
     std::lock_guard<std::mutex> lock(_mutex);
     return _writes;
+  }
+
+  // Returns true if uploads did not start until a lookup had finished.
+  bool uploads_waited_for_lookup() {
+    std::lock_guard<std::mutex> lock(_mutex);
+    return _uploads_waited_for_lookup;
   }
 
   int has_tree_calls() {
@@ -114,9 +140,12 @@ class fake_remote : public fstree::remote {
   }
 
   std::mutex _mutex;
+  std::condition_variable _cv;
   std::map<std::string, std::string> _objects;
   std::map<std::string, int> _writes;
   int _has_tree_calls = 0;
+  int _write_count = 0;
+  bool _uploads_waited_for_lookup = false;
 };
 
 class PushTest : public ::testing::Test {
@@ -195,4 +224,18 @@ TEST_F(PushTest, LooksUpTreesOneLevelAtATime) {
 
   // The root is found missing, then its children, then theirs.
   EXPECT_EQ(3, remote.has_tree_calls());
+}
+
+TEST_F(PushTest, UploadsWhileLookingUp) {
+  // Missing trees and objects are reported while the lookup is still in
+  // progress, and uploading them should not wait for it to complete.
+  for (int i = 0; i < 3; i++) {
+    CreateFile("dir" + std::to_string(i) + "/file.txt", "file " + std::to_string(i));
+  }
+
+  fake_remote remote;
+  fstree::digest tree = Push(remote);
+
+  EXPECT_TRUE(remote.is_complete(tree));
+  EXPECT_FALSE(remote.uploads_waited_for_lookup());
 }

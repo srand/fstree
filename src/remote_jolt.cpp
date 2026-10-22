@@ -149,10 +149,7 @@ void remote_jolt::read_object(
   }
 }
 
-void remote_jolt::has_tree(
-    const std::vector<fstree::digest>& hashes,
-    std::vector<fstree::digest>& missing_trees,
-    std::vector<fstree::digest>& missing_objects) {
+void remote_jolt::has_tree(const std::vector<fstree::digest>& hashes, const missing_callback& callback) {
   // Set up gRPC client
   grpc::ClientContext context;
 
@@ -168,15 +165,24 @@ void remote_jolt::has_tree(
   // Call the RPC
   auto server = _client->HasTree(&context, request);
 
-  // Read the responses
-  while (server->Read(&response)) {
-    // Copy the missing trees and objects vectors
-    for (int i = 0; i < response.missing_trees_size(); i++) {
-      missing_trees.push_back(fstree::digest::parse(response.missing_trees(i)));
+  // Pass on the missing trees and objects of each response as it arrives
+  try {
+    while (server->Read(&response)) {
+      std::vector<fstree::digest> missing_trees, missing_objects;
+      for (int i = 0; i < response.missing_trees_size(); i++) {
+        missing_trees.push_back(fstree::digest::parse(response.missing_trees(i)));
+      }
+      for (int i = 0; i < response.missing_objects_size(); i++) {
+        missing_objects.push_back(fstree::digest::parse(response.missing_objects(i)));
+      }
+      callback(missing_trees, missing_objects);
     }
-    for (int i = 0; i < response.missing_objects_size(); i++) {
-      missing_objects.push_back(fstree::digest::parse(response.missing_objects(i)));
-    }
+  }
+  catch (...) {
+    // Abandon the call before passing on the error
+    context.TryCancel();
+    server->Finish();
+    throw;
   }
 
   auto status = server->Finish();

@@ -13,12 +13,8 @@ class remote_http : public remote {
   // Returns true if the object with the given hash is present in the remote.
   virtual bool has_object(const fstree::digest& hash) override;
 
-  // Returns lists of trees and objects that are missing in the remote.
-  // The missing_trees and missing_objects vectors are filled with the hashes of the missing trees and objects.
-  virtual void has_tree(
-      const std::vector<fstree::digest>& hashes,
-      std::vector<fstree::digest>& missing_trees,
-      std::vector<fstree::digest>& missing_objects) override;
+  // Finds trees and objects that are missing in the remote.
+  virtual void has_tree(const std::vector<fstree::digest>& hashes, const missing_callback& callback) override;
 
   // Returns a vector of booleans indicating the presence of objects with the given hashes.
   virtual void has_objects(const std::vector<fstree::digest>& hashes, std::vector<bool>& presence) override;

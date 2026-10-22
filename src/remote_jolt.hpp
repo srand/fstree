@@ -16,10 +16,7 @@ class remote_jolt : public remote {
  public:
   explicit remote_jolt(const url& address);
 
-  void has_tree(
-      const std::vector<fstree::digest>& hashes,
-      std::vector<fstree::digest>& missing_trees,
-      std::vector<fstree::digest>& missing_objects) override;
+  void has_tree(const std::vector<fstree::digest>& hashes, const missing_callback& callback) override;
   bool has_object(const fstree::digest& hash) override;
   void has_objects(const std::vector<fstree::digest>& hashes, std::vector<bool>& presence) override;
   void write_object(const fstree::digest& hash, const std::filesystem::path& path) override;

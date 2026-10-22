@@ -385,16 +385,60 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
   // List of trees to check for presence in the remote
   std::vector<fstree::digest> check_trees;
 
-  // Mutex to protect the check_trees list when adding new trees
-  std::mutex check_trees_mutex;
+  // Trees uploaded in the current round, to be checked in the next
+  std::vector<fstree::digest> next_trees;
+
+  // Mutex to protect next_trees and pushed
+  std::mutex mutex;
 
   // Digests that have been scheduled for upload. Identical files and
   // directories share a digest and the remote may report each occurrence
   // as missing, but each only needs to be uploaded once.
   std::unordered_set<std::string> pushed;
   const auto first_push = [&](const fstree::digest& hash) {
-    std::lock_guard<std::mutex> lock(check_trees_mutex);
+    std::lock_guard<std::mutex> lock(mutex);
     return pushed.insert(hash.string()).second;
+  };
+
+  // Upload missing trees and objects in parallel
+  const auto upload_missing = [&](const std::vector<fstree::digest>& missing_trees,
+                                  const std::vector<fstree::digest>& missing_objects) {
+    for (const auto& hash : missing_objects) {
+      if (!first_push(hash)) continue;
+      event("cache::remote_missing_object", hash.string());
+
+      wg.add(1);
+      pool.enqueue([this, &wg, &remote, hash]() {
+        try {
+          push_object(remote, hash);
+          wg.done();
+        }
+        catch (const std::exception& e) {
+          wg.exception(e);
+        }
+      });
+    }
+
+    for (const auto& hash : missing_trees) {
+      if (!first_push(hash)) continue;
+      event("cache::remote_missing_tree", hash.string());
+
+      wg.add(1);
+      pool.enqueue([this, &next_trees, &mutex, &wg, &remote, hash]() {
+        try {
+          push_tree(remote, hash);
+
+          // Check the tree's children in the next round now that it's been pushed
+          std::lock_guard<std::mutex> lock(mutex);
+          next_trees.push_back(hash);
+
+          wg.done();
+        }
+        catch (const std::exception& e) {
+          wg.exception(e);
+        }
+      });
+    }
   };
 
   // First add the root tree to be checked
@@ -404,15 +448,14 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
   // up again in the next round, once uploaded, to find which of their children
   // are missing. The number of rounds thus follows the depth of the tree.
   while (!check_trees.empty()) {
-    // Lists of missing trees and objects below the checked trees
-    std::vector<fstree::digest> missing_trees, missing_objects;
-
-    // Query the remote for missing trees and objects
+    // Query the remote for missing trees and objects, uploading them as
+    // they are reported.
     try {
-      remote.has_tree(check_trees, missing_trees, missing_objects);
+      remote.has_tree(check_trees, upload_missing);
     }
     catch (const fstree::unsupported_operation& e) {
       // If the has_tree method is unsupported, check all objects in the index manually
+      std::vector<fstree::digest> missing_trees, missing_objects;
 
       // Check the root trees
       for (const auto& tree_hash : check_trees) {
@@ -433,51 +476,19 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
           }
         }
       }
+
+      upload_missing(missing_trees, missing_objects);
     }
-
-    // Trees uploaded in this round are added for the next round
-    check_trees.clear();
-
-    // Write missing objects in parallel
-    for (const auto& hash : missing_objects) {
-      if (!first_push(hash)) continue;
-      event("cache::remote_missing_object", hash.string());
-
-      wg.add(1);
-      pool.enqueue([this, &wg, &remote, hash]() {
-        try {
-          push_object(remote, hash);
-          wg.done();
-        }
-        catch (const std::exception& e) {
-          wg.exception(e);
-        }
-      });
-    }
-
-    // Write missing trees in parallel
-    for (const auto& hash : missing_trees) {
-      if (!first_push(hash)) continue;
-      event("cache::remote_missing_tree", hash.string());
-
-      wg.add(1);
-      pool.enqueue([this, &check_trees, &check_trees_mutex, &wg, &remote, hash]() {
-        try {
-          push_tree(remote, hash);
-
-          // Check the tree's children in the next round now that it's been pushed
-          std::lock_guard<std::mutex> lock(check_trees_mutex);
-          check_trees.push_back(hash);
-
-          wg.done();
-        }
-        catch (const std::exception& e) {
-          wg.exception(e);
-        }
-      });
+    catch (...) {
+      // Uploads already started refer to this frame, let them finish first
+      wg.wait();
+      throw;
     }
 
     wg.wait_rethrow();
+
+    check_trees = std::move(next_trees);
+    next_trees.clear();
   }
 }
 
