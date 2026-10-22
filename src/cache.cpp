@@ -12,6 +12,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <unordered_set>
 
 namespace fs = std::filesystem;
 
@@ -387,6 +388,15 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
   // Mutex to protect the check_trees list when adding new trees
   std::mutex check_trees_mutex;
 
+  // Digests that have been scheduled for upload. Identical files and
+  // directories share a digest and the remote may report each occurrence
+  // as missing, but each only needs to be uploaded once.
+  std::unordered_set<std::string> pushed;
+  const auto first_push = [&](const fstree::digest& hash) {
+    std::lock_guard<std::mutex> lock(check_trees_mutex);
+    return pushed.insert(hash.string()).second;
+  };
+
   // First add the root tree to be checked
   check_trees.push_back(index.root()->hash());
 
@@ -431,6 +441,7 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
 
     // Write missing objects in parallel
     for (const auto& hash : missing_objects) {
+      if (!first_push(hash)) continue;
       event("cache::remote_missing_object", hash.string());
 
       wg.add(1);
@@ -447,6 +458,7 @@ void cache::push(const fstree::index& index, fstree::remote& remote) {
 
     // Write missing trees in parallel
     for (const auto& hash : missing_trees) {
+      if (!first_push(hash)) continue;
       event("cache::remote_missing_tree", hash.string());
 
       wg.add(1);
