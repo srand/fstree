@@ -10,11 +10,14 @@ from jolt.pkgs import grpc
 from jolt.pkgs import googletest
 from jolt.pkgs import ssl
 
+import contextlib
 import functools
 import json
 import os
 import platform
+import threading
 import yaml
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 influence.global_string(str(platform.python_build()))
@@ -96,6 +99,67 @@ class Default(Alias):
     requires = [
         "tests",
     ]
+
+
+class HttpObjectStore(object):
+    """ In-memory HTTP server storing objects for fstree's HTTP remote. """
+
+    def __init__(self):
+        self.objects = {}
+        self.lock = threading.Lock()
+        store = self
+
+        class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, *args):
+                pass
+
+            def reply(self, code, body=b""):
+                self.send_response(code)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                if self.command != "HEAD":
+                    self.wfile.write(body)
+
+            def do_HEAD(self):
+                with store.lock:
+                    found = self.path in store.objects
+                self.reply(200 if found else 404)
+
+            def do_GET(self):
+                with store.lock:
+                    body = store.objects.get(self.path)
+                self.reply(404) if body is None else self.reply(200, body)
+
+            def do_PUT(self):
+                body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+                with store.lock:
+                    store.objects[self.path] = body
+                self.reply(201)
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.server.daemon_threads = True
+        self.url = "http://127.0.0.1:{}/store".format(self.server.server_address[1])
+
+    @contextlib.contextmanager
+    def running(self):
+        thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            yield self
+        finally:
+            self.server.shutdown()
+            self.server.server_close()
+            thread.join()
+
+    def replace(self, content, replacement):
+        """ Replace the content of every stored object that has the given content. """
+        with self.lock:
+            paths = [path for path, body in self.objects.items() if body == content]
+            for path in paths:
+                self.objects[path] = replacement
+        return len(paths)
 
 
 class Tests(Test):
@@ -221,6 +285,56 @@ class Tests(Test):
             for filename in filenames:
                 encoded = os.fsencode(filename)
                 self.assertTrue(any(encoded in path for path in event_paths), repr(filename))
+
+    def push_to_http_store(self, tmp, store, files):
+        """ Write files to a tree and push it to the store. Returns the tree digest. """
+        for name, content in files.items():
+            path = os.path.join(tmp, "tree", name)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "wb") as stream:
+                stream.write(content)
+
+        return self.tools.run(
+            "fstree write-tree-push --cache cache --remote {} --index {} tree",
+            store.url, os.path.join(tmp, "index")).strip()
+
+    def test_http_remote_push_and_pull(self):
+        """Test that a tree pushed to an HTTP remote can be pulled and checked out."""
+        files = {"file.txt": b"file", "dir/same.txt": b"same", "other/same.txt": b"same"}
+
+        with self.tools.tmpdir("http-remote") as tmp, self.tools.cwd(tmp):
+            with HttpObjectStore().running() as store:
+                tree = self.push_to_http_store(tmp, store, files)
+                self.tools.run(
+                    "fstree pull-checkout --cache pulled --remote {} --index {} {} actual",
+                    store.url, os.path.join(tmp, "pulled-index"), tree)
+
+            for name, content in files.items():
+                with open(os.path.join(tmp, "actual", name), "rb") as stream:
+                    self.assertEqual(content, stream.read(), name)
+
+    def test_http_remote_rejects_corrupt_object(self):
+        """Test that an object whose content does not match its digest is not pulled."""
+
+        with self.tools.tmpdir("http-corrupt") as tmp, self.tools.cwd(tmp):
+            with HttpObjectStore().running() as store:
+                tree = self.push_to_http_store(tmp, store, {"file.txt": b"original content"})
+
+                # A plain HTTP server stores whatever it is given, so an object
+                # can be truncated or otherwise differ from its digest.
+                self.assertEqual(1, store.replace(b"original content", b"original"))
+
+                with self.assertRaises(Exception):
+                    self.tools.run(
+                        "fstree pull-checkout --cache pulled --remote {} --index {} {} actual",
+                        store.url, os.path.join(tmp, "pulled-index"), tree)
+
+            # The corrupt object must not be stored in the cache under the
+            # digest of the original, or every later checkout would use it.
+            for root, _, names in os.walk(os.path.join(tmp, "pulled")):
+                for name in names:
+                    with open(os.path.join(root, name), "rb") as stream:
+                        self.assertNotEqual(b"original", stream.read(), name)
 
     def runner(func):
 

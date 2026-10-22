@@ -4,6 +4,7 @@
 
 #include "exception.hpp"
 #include "filesystem.hpp"
+#include "hash.hpp"
 #include "url.hpp"
 
 #include <cstring>
@@ -179,6 +180,18 @@ void remote_http::read_object(
   if (response_code != 200) {
     std::filesystem::remove(temp_path);
     throw std::runtime_error("failed to download object: " + hash.string() + ": HTTP " + std::to_string(response_code));
+  }
+
+  // A plain HTTP server stores whatever it is given and a download can end
+  // early, so check the content against its digest before it enters the cache.
+  // Every later checkout trusts an object found there. Only digests of the
+  // algorithm in use can be computed here.
+  if (hash.alg() == fstree::hash_function) {
+    fstree::digest actual = hashsum_hex_file(temp_path);
+    if (!(actual == hash)) {
+      std::filesystem::remove(temp_path);
+      throw std::runtime_error("downloaded object does not match its digest: " + hash.string() + ": got " + actual.string());
+    }
   }
 
   // Move the temporary file to the final path
