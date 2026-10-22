@@ -127,6 +127,10 @@ void index::save(const std::filesystem::path& indexfile) const {
     if (!file) break;
   }
 
+  // Close explicitly to flush the stream's buffer, which can fail too. The
+  // destructor would ignore that and leave a truncated index behind.
+  if (file) file.close();
+
   if (!file) throw std::runtime_error("failed writing index: " + path.string() + ": " + std::strerror(errno));
 }
 
