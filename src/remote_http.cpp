@@ -84,7 +84,7 @@ void remote_http::has_objects(const std::vector<fstree::digest>& hashes, std::ve
 
 // Send the object with the given hash and path to the remote.
 void remote_http::write_object(const fstree::digest& hash, const std::filesystem::path& path) {
-  std::string url = url_path(hash.string());
+  std::string url = url_path(hash);
   CURLHandle curl;
 
   // Open input file
@@ -126,7 +126,7 @@ void remote_http::write_object(const fstree::digest& hash, const std::filesystem
 // The temp path is used to store the object temporarily before moving it to the final path.
 void remote_http::read_object(
     const fstree::digest& hash, const std::filesystem::path& path, const std::filesystem::path& temp) {
-  std::string url = url_path(hash.string());
+  std::string url = url_path(hash);
   CURLHandle curl;
 
   // Create a temporary file using mkstemp
@@ -174,13 +174,14 @@ void remote_http::read_object(
   }
 }
 
-std::string remote_http::url_path(const std::string& hash) {
-  return _remote_url.string() + "/" + hash.substr(0, 2) + "/" + hash.substr(2, 6) + "/" + hash.substr(6);
+std::string remote_http::url_path(const fstree::digest& hash) const {
+  const std::string& hex = hash.hexdigest();
+  return _remote_url.string() + "/" + hex.substr(0, 2) + "/" + hex.substr(2, 4) + "/" + hex.substr(6);
 }
 
 bool remote_http::head(const fstree::digest& hash) {
   try {
-    std::string url = url_path(hash.string());
+    std::string url = url_path(hash);
     CURLHandle curl;
 
     curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());

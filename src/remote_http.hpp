@@ -27,8 +27,11 @@ class remote_http : public remote {
   virtual void read_object(
       const fstree::digest& hash, const std::filesystem::path& path, const std::filesystem::path& temp) override;
 
+  // Returns the URL of the object with the given hash. Objects are spread
+  // over directories named by the first two and next four hex digits.
+  std::string url_path(const fstree::digest& hash) const;
+
  private:
-    std::string url_path(const std::string& hash);
     bool head(const fstree::digest& hash);
 
  private:

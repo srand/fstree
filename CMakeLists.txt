@@ -231,6 +231,7 @@ if (fstree_BUILD_TESTS)
         test/test_iterator.cpp
         test/test_jobserver.cpp
         test/test_push.cpp
+        test/test_remote_http.cpp
         test/test_status.cpp
         test/test_url.cpp
     )
