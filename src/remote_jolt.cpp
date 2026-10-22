@@ -115,10 +115,11 @@ void remote_jolt::read_object(
   while (reader->Read(&response)) {
     size_t ret = fwrite(response.data().data(), 1, response.data().size(), file);
     if (ret != response.data().size()) {
+      int err = errno;
       fclose(file);
       std::filesystem::remove(temp_path);
       throw std::runtime_error(
-          "failed to write to temporary file: " + temp_path.string() + ": " + std::strerror(errno));
+          "failed to write to temporary file: " + temp_path.string() + ": " + std::strerror(err));
     }
   }
 
@@ -129,7 +130,12 @@ void remote_jolt::read_object(
     throw std::runtime_error("failed to read cache object: " + hash.string() + ": " + status.error_message());
   }
 
-  fclose(file);
+  // Closing flushes what fwrite buffered, which for a small object is all of it
+  if (fclose(file) != 0) {
+    int err = errno;
+    std::filesystem::remove(temp_path);
+    throw std::runtime_error("failed to write to temporary file: " + temp_path.string() + ": " + std::strerror(err));
+  }
 
   // The service checks objects when they are written, but they may have
   // been damaged in its storage since.
