@@ -336,6 +336,28 @@ class Tests(Test):
                     with open(os.path.join(root, name), "rb") as stream:
                         self.assertNotEqual(b"original", stream.read(), name)
 
+    def test_http_remote_cleans_up_failed_download(self):
+        """Test that a download that cannot be moved into the cache is removed."""
+
+        with self.tools.tmpdir("http-cleanup") as tmp, self.tools.cwd(tmp):
+            with HttpObjectStore().running() as store:
+                tree = self.push_to_http_store(tmp, store, {"file.txt": b"content"})
+
+                # Occupy the shard directory names with files, so that no
+                # downloaded object can be moved into place.
+                objects = os.path.join(tmp, "pulled", "objects")
+                os.makedirs(objects)
+                for shard in range(256):
+                    with open(os.path.join(objects, "{:02x}".format(shard)), "wb"):
+                        pass
+
+                with self.assertRaises(Exception):
+                    self.tools.run(
+                        "fstree pull --cache pulled --remote {} --index {} {}",
+                        store.url, os.path.join(tmp, "pulled-index"), tree)
+
+            self.assertEqual([], os.listdir(os.path.join(tmp, "pulled", "tmp")))
+
     def runner(func):
 
         @functools.wraps(func)

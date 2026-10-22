@@ -228,7 +228,8 @@ void remote_http::read_object(
 
   std::filesystem::rename(temp_path, path, ec);
   if (ec) {
-    // std::filesystem::remove(temp_path);
+    std::error_code remove_ec;
+    std::filesystem::remove(temp_path, remove_ec);
     throw std::runtime_error("failed to rename temporary file: " + temp_path.string() + ": " + ec.message());
   }
 }
