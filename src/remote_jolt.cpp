@@ -118,6 +118,11 @@ void remote_jolt::read_object(
       int err = errno;
       fclose(file);
       std::filesystem::remove(temp_path);
+
+      // Abandon the call so the service stops sending the rest
+      context.TryCancel();
+      reader->Finish();
+
       throw std::runtime_error(
           "failed to write to temporary file: " + temp_path.string() + ": " + std::strerror(err));
     }
