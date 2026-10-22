@@ -22,6 +22,10 @@ void sorted_directory_iterator::read_directory(
     const std::filesystem::path& abs, const std::filesystem::path& rel, inode::ptr& parent, const glob_list& ignores) {
   fstree::wait_group wg;
 
+  // Entries of the directory, added to the shared list together once the
+  // directory has been read, rather than taking its lock for each of them
+  std::vector<inode::ptr> entries;
+
   DWORD error;
   WIN32_FIND_DATAW result;
   HANDLE handle;
@@ -97,12 +101,10 @@ void sorted_directory_iterator::read_directory(
       }
     }
 
+    // Only this call adds children to the parent, so that needs no lock
     inode::ptr node = fstree::make_intrusive<fstree::inode>(utf8_path, status, mtime, size, to_utf8(target));
-    {
-      std::lock_guard<std::mutex> lock(_mutex);
-      _inodes.push_back(node);
-      parent->add_child(node);
-    }
+    parent->add_child(node);
+    entries.push_back(node);
 
     // Recurse if it's a directory
     if (_recursive && type == fs::file_type::directory) {
@@ -121,6 +123,11 @@ void sorted_directory_iterator::read_directory(
   } while (FindNextFileW(handle, &result));
 
   FindClose(handle);
+
+  {
+    std::lock_guard<std::mutex> lock(_mutex);
+    _inodes.insert(_inodes.end(), entries.begin(), entries.end());
+  }
 
   wg.wait_rethrow();
 }

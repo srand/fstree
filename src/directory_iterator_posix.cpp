@@ -40,6 +40,10 @@ void sorted_directory_iterator::read_directory(
 
   fstree::wait_group wg;
 
+  // Entries of the directory, added to the shared list together once the
+  // directory has been read, rather than taking its lock for each of them
+  std::vector<inode::ptr> entries;
+
   // Iterate the directory
   const struct dirent* entry;
   while ((entry = readdir(dir)) != nullptr) {
@@ -97,12 +101,10 @@ void sorted_directory_iterator::read_directory(
     file_status status(status_bits);
 
     // Add the path to the list of inodes
+    // Only this call adds children to the parent, so that needs no lock
     inode::ptr node = fstree::make_intrusive<inode>(relpath.string(), status, mtime, st.st_size, target);
-    {
-      std::lock_guard<std::mutex> lock(_mutex);
-      _inodes.push_back(node);
-      parent->add_child(node);
-    }
+    parent->add_child(node);
+    entries.push_back(node);
 
     // Recurse if it's a directory
     if (_recursive && entry->d_type == DT_DIR) {
@@ -122,6 +124,11 @@ void sorted_directory_iterator::read_directory(
 
   // Close the directory
   closedir(dir);
+
+  {
+    std::lock_guard<std::mutex> lock(_mutex);
+    _inodes.insert(_inodes.end(), entries.begin(), entries.end());
+  }
 
   // Wait for all the children to finish
   wg.wait_rethrow();
