@@ -7,6 +7,7 @@
 #include "hash.hpp"
 #include "url.hpp"
 
+#include <cerrno>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -19,11 +20,21 @@ namespace fstree {
 
 namespace {
 
-// Callback to write data to a file
+// File that downloaded data is written to, and the error that stopped it
+struct DownloadFile {
+  FILE* file;
+  int error;
+};
+
+// Callback to write data to a file. Returns the number of bytes written,
+// so that curl aborts the transfer if they were not all written.
 size_t FileWriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
-  FILE* file = static_cast<FILE*>(userp);
-  fwrite(contents, size, nmemb, file);
-  return size * nmemb;
+  DownloadFile* download = static_cast<DownloadFile*>(userp);
+  size_t written = fwrite(contents, 1, size * nmemb, download->file);
+  if (written != size * nmemb) {
+    download->error = errno;
+  }
+  return written;
 }
 
 // Callback to read data from a file
@@ -164,11 +175,22 @@ void remote_http::read_object(
 
   curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
   curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, FileWriteCallback);
-  curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, outfile);
+  DownloadFile download{outfile, 0};
+  curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &download);
   curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 1L);
 
   CURLcode res = curl_easy_perform(curl.get());
-  fclose(outfile);
+  // Closing flushes buffered data, which can fail too
+  if (fclose(outfile) != 0 && res == CURLE_OK) {
+    download.error = errno;
+    res = CURLE_WRITE_ERROR;
+  }
+
+  if (res == CURLE_WRITE_ERROR && download.error != 0) {
+    std::filesystem::remove(temp_path);
+    throw std::runtime_error(
+        "failed to write downloaded object: " + temp_path.string() + ": " + std::strerror(download.error));
+  }
 
   if (res != CURLE_OK) {
     std::filesystem::remove(temp_path);
