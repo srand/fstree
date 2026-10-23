@@ -112,7 +112,7 @@ void cache::add(fstree::index& index) {
   constexpr size_t batch_size = 64;
 
   for (size_t begin = 0; begin < clean_files.size(); begin += batch_size) {
-    size_t end = std::min(begin + batch_size, clean_files.size());
+    size_t end = (std::min)(begin + batch_size, clean_files.size());
     run([this, &index, &clean_files, begin, end]() {
       for (size_t i = begin; i < end; i++) {
         const auto& inode = clean_files[i];
@@ -125,7 +125,7 @@ void cache::add(fstree::index& index) {
   }
 
   for (size_t begin = 0; begin < dirs.size(); begin += batch_size) {
-    size_t end = std::min(begin + batch_size, dirs.size());
+    size_t end = (std::min)(begin + batch_size, dirs.size());
     run([this, &dirs, &dirs_missing, begin, end]() {
       for (size_t i = begin; i < end; i++) {
         dirs_missing[i] = dirs[i]->is_dirty() || !has_tree(dirs[i]->hash());
