@@ -2,6 +2,7 @@
 
 #include "filesystem.hpp"
 
+#include <atomic>
 #include <cstring>
 
 #include <fcntl.h>
@@ -59,6 +60,26 @@ FILE* mkstemp(std::filesystem::path& path) {
   path = std::filesystem::path(temp_path);
 
   return ::fdopen(fd, "w");
+}
+
+FILE* mkstemp_umask(std::filesystem::path& path) {
+  static std::atomic<int> counter;
+  std::string pid = std::to_string(getpid());
+
+  // ::mkstemp always creates the file with mode 0600. Opening it exclusively with
+  // 0666 instead lets the kernel apply the umask, which can't be read without
+  // briefly changing it for every thread.
+  for (int i = 0; i < 59; i++) {
+    std::string temp_path = path.string() + "/" + pid + "-" + std::to_string(++counter);
+    int fd = ::open(temp_path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0666);
+    if (fd != -1) {
+      path = std::filesystem::path(temp_path);
+      return ::fdopen(fd, "w");
+    }
+    if (errno != EEXIST) break;
+  }
+
+  return NULL;
 }
 
 std::filesystem::path home_path() {

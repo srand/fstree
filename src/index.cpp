@@ -89,9 +89,20 @@ void index::save(const std::filesystem::path& indexfile) const {
     throw std::runtime_error("failed to create index directory: " + path.parent_path().string() + ": " + ec.message());
   }
 
-  std::ofstream file(path, std::ios::trunc | std::ios::binary);
+  // Write to a temporary file next to the index and rename it into place, so
+  // that readers, and a crash or failure midway, never see a partial index.
+  std::filesystem::path tmp = path.parent_path();
+  FILE* fp = fstree::mkstemp_umask(tmp);
+  if (!fp) {
+    throw std::runtime_error("failed to create temporary file: " + tmp.string() + ": " + std::strerror(errno));
+  }
+  fclose(fp);
+
+  std::ofstream file(tmp, std::ios::trunc | std::ios::binary);
   if (!file) {
-    throw std::runtime_error("failed to open index for writing: " + path.string() + ": " + std::strerror(errno));
+    int err = errno;
+    std::filesystem::remove(tmp, ec);
+    throw std::runtime_error("failed to open index for writing: " + tmp.string() + ": " + std::strerror(err));
   }
 
   // Write magic and version
@@ -131,7 +142,18 @@ void index::save(const std::filesystem::path& indexfile) const {
   // destructor would ignore that and leave a truncated index behind.
   if (file) file.close();
 
-  if (!file) throw std::runtime_error("failed writing index: " + path.string() + ": " + std::strerror(errno));
+  if (!file) {
+    int err = errno;
+    std::filesystem::remove(tmp, ec);
+    throw std::runtime_error("failed writing index: " + tmp.string() + ": " + std::strerror(err));
+  }
+
+  std::filesystem::rename(tmp, path, ec);
+  if (ec) {
+    std::error_code remove_ec;
+    std::filesystem::remove(tmp, remove_ec);
+    throw std::runtime_error("failed to rename index: " + tmp.string() + ": " + ec.message());
+  }
 }
 
 void index::load() {
