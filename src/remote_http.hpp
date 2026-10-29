@@ -1,6 +1,7 @@
 #pragma once
 
 #include "remote.hpp"
+#include "service_auth.hpp"
 #include "url.hpp"
 
 #include <mutex>
@@ -39,6 +40,15 @@ class remote_http : public remote {
 
  private:
   url _remote_url;
+
+  // Token and certificate authorities, from the environment
+  service_auth _auth;
+
+  // Headers sent with each request, a curl_slist with the token, if any
+  void* _headers;
+
+  // Sets the options of each request on a handle.
+  void configure(void* handle) const;
 
   // Easy handle on loan from the pool below.
   class handle;

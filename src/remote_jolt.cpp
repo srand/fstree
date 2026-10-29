@@ -4,6 +4,7 @@
 
 #include "filesystem.hpp"
 #include "hash.hpp"
+#include "service_auth.hpp"
 
 #include <cstdio>
 #include <fstream>
@@ -40,14 +41,36 @@ remote_jolt::remote_jolt(const url& address) {
     }
   )");
 
-  auto channel_creds = grpc::InsecureChannelCredentials();
+  // tls:// URIs use TLS, and only TLS connections get the token, unless
+  // sending it without TLS is allowed
+  auto auth = service_auth::from_environment();
+  std::shared_ptr<grpc::ChannelCredentials> channel_creds;
+  if (address.scheme() == "tls") {
+    grpc::SslCredentialsOptions ssl_options;
+    ssl_options.pem_root_certs = auth.ca_cert_pem();
+    channel_creds = grpc::SslCredentials(ssl_options);
+    const std::string& token = auth.token(true, address.string());
+    if (!token.empty()) {
+      channel_creds = grpc::CompositeChannelCredentials(channel_creds, grpc::AccessTokenCredentials(token));
+    }
+  } else {
+    channel_creds = grpc::InsecureChannelCredentials();
+    _insecure_token = auth.token(false, address.string());
+  }
   _channel = grpc::CreateCustomChannel(address.host(), channel_creds, args);
   _client = fstree::CacheService::NewStub(_channel);
+}
+
+void remote_jolt::authenticate(grpc::ClientContext& context) const {
+  if (!_insecure_token.empty()) {
+    context.AddMetadata("authorization", "Bearer " + _insecure_token);
+  }
 }
 
 void remote_jolt::write_object(const fstree::digest& hash, const std::filesystem::path& path) {
   // Set up gRPC client
   grpc::ClientContext context;
+  authenticate(context);
 
   // Create a blob write request message
   fstree::WriteObjectRequest request;
@@ -93,6 +116,7 @@ void remote_jolt::read_object(
     const fstree::digest& hash, const std::filesystem::path& path, const std::filesystem::path& temp) {
   // Set up gRPC client
   grpc::ClientContext context;
+  authenticate(context);
 
   // Create a blob read request message
   fstree::ReadObjectRequest request;
@@ -167,6 +191,7 @@ void remote_jolt::read_object(
 void remote_jolt::has_tree(const std::vector<fstree::digest>& hashes, const missing_callback& callback) {
   // Set up gRPC client
   grpc::ClientContext context;
+  authenticate(context);
 
   // Create a HasTree request message
   fstree::HasTreeRequest request;
@@ -217,6 +242,7 @@ bool remote_jolt::has_object(const fstree::digest& hash) {
 void remote_jolt::has_objects(const std::vector<fstree::digest>& hashes, std::vector<bool>& presence) {
   // Set up gRPC client
   grpc::ClientContext context;
+  authenticate(context);
 
   // Create a blob has request message
   fstree::HasObjectRequest request;

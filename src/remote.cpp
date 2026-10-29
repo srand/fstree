@@ -32,7 +32,7 @@ void verify_download(const fstree::digest& hash, const std::filesystem::path& fi
 
 std::unique_ptr<remote> remote::create(const url& address) {
 #ifdef FSTREE_ENABLE_JOLT_REMOTE
-  if (address.scheme() == "jolt" || address.scheme() == "tcp") {
+  if (address.scheme() == "jolt" || address.scheme() == "tcp" || address.scheme() == "tls") {
     return std::make_unique<remote_jolt>(address);
   }
 #endif

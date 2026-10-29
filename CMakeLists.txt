@@ -84,6 +84,7 @@ set(SRCS
     src/jolt.proto
     src/remote.cpp
     src/remote_jolt.cpp
+    src/service_auth.cpp
     src/status.cpp
     src/thread.cpp
     src/thread_pool.cpp
@@ -235,6 +236,7 @@ if (fstree_BUILD_TESTS)
         test/test_push.cpp
         test/test_remote.cpp
         test/test_remote_http.cpp
+        test/test_service_auth.cpp
         test/test_status.cpp
         test/test_url.cpp
     )

@@ -69,6 +69,9 @@ class remote_http::handle {
         throw std::runtime_error("Failed to initialize CURL");
       }
     }
+
+    // Options are reset after each request
+    _remote.configure(_handle);
   }
 
   ~handle() {
@@ -90,13 +93,34 @@ class remote_http::handle {
   CURL* _handle;
 };
 
-remote_http::remote_http(const url& remote_url) : _remote_url(remote_url) { curl_global_init(CURL_GLOBAL_DEFAULT); }
+remote_http::remote_http(const url& remote_url)
+    : _remote_url(remote_url), _auth(service_auth::from_environment()), _headers(nullptr) {
+  curl_global_init(CURL_GLOBAL_DEFAULT);
+
+  // The token is only sent over TLS, unless that is allowed
+  const std::string& token = _auth.token(_remote_url.scheme() == "https", _remote_url.string());
+  if (!token.empty()) {
+    std::string header = "Authorization: Bearer " + token;
+    _headers = curl_slist_append(nullptr, header.c_str());
+  }
+}
 
 remote_http::~remote_http() {
   for (void* handle : _handles) {
     curl_easy_cleanup(static_cast<CURL*>(handle));
   }
+  curl_slist_free_all(static_cast<curl_slist*>(_headers));
   curl_global_cleanup();
+}
+
+void remote_http::configure(void* handle) const {
+  CURL* curl = static_cast<CURL*>(handle);
+  if (_headers) {
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, static_cast<curl_slist*>(_headers));
+  }
+  if (!_auth.ca_cert().empty()) {
+    curl_easy_setopt(curl, CURLOPT_CAINFO, _auth.ca_cert().c_str());
+  }
 }
 
 // Returns true if the object with the given hash is present in the remote.

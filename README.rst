@@ -97,7 +97,16 @@ The following environment variables are supported:
 - ``FSTREE_CACHE``: The directory where the local object cache is stored. Defaults to ``~/.cache/fstree`` on Linux and macOS and ``~/AppData/Local/fstree`` on Windows.
 - ``FSTREE_IGNORE``: The relative path to the ignore file. Defaults to ``.fstreeignore`` in the root of the tree.
 - ``FSTREE_REMOTE``: The remote address of the server to connect to. Defaults to ``jolt://localhost:9090``.
+  Use ``tls://`` for a gRPC server with TLS, and ``https://`` for an HTTP server with TLS.
 - ``FSTREE_THREADS``: The number of threads to use for parallel operations. Defaults to the number of CPU cores.
+
+Servers that require authentication are configured with the same variables as Jolt:
+
+- ``JOLT_CACHE_TOKEN``: Token that authenticates the client with the server. It is only sent
+  over TLS, to ``tls://`` and ``https://`` remotes.
+- ``JOLT_CA_CERT``: PEM file with the certificates of the authorities that the certificate of
+  the server is verified with, such as a private authority.
+- ``JOLT_ALLOW_INSECURE_TOKEN``: Set to ``true`` to send the token without TLS.
 
 The following command line arguments are supported:
 

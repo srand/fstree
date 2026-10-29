@@ -12,6 +12,12 @@ namespace fstree {
 class remote_jolt : public remote {
   std::shared_ptr<grpc::Channel> _channel;
   std::unique_ptr<fstree::CacheService::Stub> _client;
+  // Token sent with each call over channels without TLS, which call
+  // credentials aren't sent over. Over TLS, the channel sends the token.
+  std::string _insecure_token;
+
+  // Sends the token with a call over a channel without TLS.
+  void authenticate(grpc::ClientContext& context) const;
 
  public:
   explicit remote_jolt(const url& address);
