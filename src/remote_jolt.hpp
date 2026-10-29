@@ -7,6 +7,9 @@
 
 #include <grpcpp/grpcpp.h>
 
+#include <mutex>
+#include <string>
+
 namespace fstree {
 
 class remote_jolt : public remote {
@@ -18,6 +21,18 @@ class remote_jolt : public remote {
 
   // Sends the token with a call over a channel without TLS.
   void authenticate(grpc::ClientContext& context) const;
+
+  // Address of the server, for messages.
+  std::string _address;
+  // Set once the channel has connected.
+  std::mutex _connect_mutex;
+  bool _connected = false;
+
+  // Waits for the channel to connect before the first call, and throws with
+  // the reason if it doesn't. Calls wait for the server to be ready, which
+  // would otherwise wait forever for a server that can't be connected to,
+  // such as one with an untrusted certificate.
+  void connect();
 
  public:
   explicit remote_jolt(const url& address);

@@ -6,7 +6,9 @@
 #include "hash.hpp"
 #include "service_auth.hpp"
 
+#include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 
 #include <grpcpp/grpcpp.h>
@@ -14,7 +16,7 @@
 
 namespace fstree {
 
-remote_jolt::remote_jolt(const url& address) {
+remote_jolt::remote_jolt(const url& address) : _address(address.string()) {
   grpc::ChannelArguments args;
 
   // Set the default compression algorithm for the channel.
@@ -61,6 +63,38 @@ remote_jolt::remote_jolt(const url& address) {
   _client = fstree::CacheService::NewStub(_channel);
 }
 
+void remote_jolt::connect() {
+  // Not std::call_once, which can't pass on exceptions with all standard libraries
+  std::lock_guard<std::mutex> lock(_connect_mutex);
+  if (_connected) {
+    return;
+  }
+
+  int timeout = 60;
+  if (const char* value = std::getenv("FSTREE_CONNECT_TIMEOUT")) {
+    timeout = std::atoi(value);
+  }
+  if (_channel->WaitForConnected(std::chrono::system_clock::now() + std::chrono::seconds(timeout))) {
+    _connected = true;
+    return;
+  }
+
+  // A call that doesn't wait for the server to be ready tells why the
+  // channel isn't
+  grpc::ClientContext context;
+  authenticate(context);
+  context.set_wait_for_ready(false);
+  context.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds(10));
+  fstree::HasObjectRequest request;
+  fstree::HasObjectResponse response;
+  auto status = _client->HasObject(&context, request, &response);
+  if (status.error_code() == grpc::StatusCode::UNAVAILABLE ||
+      status.error_code() == grpc::StatusCode::DEADLINE_EXCEEDED) {
+    throw std::runtime_error("failed to connect to " + _address + ": " + status.error_message());
+  }
+  _connected = true;
+}
+
 void remote_jolt::authenticate(grpc::ClientContext& context) const {
   if (!_insecure_token.empty()) {
     context.AddMetadata("authorization", "Bearer " + _insecure_token);
@@ -68,6 +102,8 @@ void remote_jolt::authenticate(grpc::ClientContext& context) const {
 }
 
 void remote_jolt::write_object(const fstree::digest& hash, const std::filesystem::path& path) {
+  connect();
+
   // Set up gRPC client
   grpc::ClientContext context;
   authenticate(context);
@@ -114,6 +150,8 @@ void remote_jolt::write_object(const fstree::digest& hash, const std::filesystem
 
 void remote_jolt::read_object(
     const fstree::digest& hash, const std::filesystem::path& path, const std::filesystem::path& temp) {
+  connect();
+
   // Set up gRPC client
   grpc::ClientContext context;
   authenticate(context);
@@ -189,6 +227,8 @@ void remote_jolt::read_object(
 }
 
 void remote_jolt::has_tree(const std::vector<fstree::digest>& hashes, const missing_callback& callback) {
+  connect();
+
   // Set up gRPC client
   grpc::ClientContext context;
   authenticate(context);
@@ -240,6 +280,8 @@ bool remote_jolt::has_object(const fstree::digest& hash) {
 }
 
 void remote_jolt::has_objects(const std::vector<fstree::digest>& hashes, std::vector<bool>& presence) {
+  connect();
+
   // Set up gRPC client
   grpc::ClientContext context;
   authenticate(context);

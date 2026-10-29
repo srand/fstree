@@ -98,6 +98,7 @@ The following environment variables are supported:
 - ``FSTREE_IGNORE``: The relative path to the ignore file. Defaults to ``.fstreeignore`` in the root of the tree.
 - ``FSTREE_REMOTE``: The remote address of the server to connect to. Defaults to ``jolt://localhost:9090``.
   Use ``tls://`` for a gRPC server with TLS, and ``https://`` for an HTTP server with TLS.
+- ``FSTREE_CONNECT_TIMEOUT``: Seconds to wait for the connection to a gRPC server before giving up. Defaults to ``60``.
 - ``FSTREE_THREADS``: The number of threads to use for parallel operations. Defaults to the number of CPU cores.
 
 Servers that require authentication are configured with the same variables as Jolt:
