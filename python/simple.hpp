@@ -28,6 +28,10 @@ public:
     void set_indexfile(const std::filesystem::path& indexfile) { _indexfile = indexfile; }
     void set_ignorefile(const std::filesystem::path& ignorefile) { _ignorefile = ignorefile; }
 
+    // Patterns applied after those of the ignore file, as its lines
+    const std::vector<std::string>& ignore_patterns() const { return _ignore_patterns; }
+    void set_ignore_patterns(const std::vector<std::string>& patterns) { _ignore_patterns = patterns; }
+
     // How permissions are recorded and restored, "exact" or "git"
     std::string permissions() const { return _permissions == permission_mode::git ? "git" : "exact"; }
     void set_permissions(const std::string& permissions) {
@@ -54,6 +58,7 @@ private:
     index _index;
     std::filesystem::path _indexfile = ".fstree/index";
     std::filesystem::path _ignorefile = ".fstreeignore";
+    std::vector<std::string> _ignore_patterns;
     permission_mode _permissions = permission_mode::exact;
 };
 

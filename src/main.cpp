@@ -71,21 +71,21 @@ class utf8_args {
 #endif
 
 int usage() {
+  // Options for the ignore file, patterns and permissions
+  const char* tree_options = "[--ignore <conf>] [--ignore-pattern <pattern>]... [--permissions exact|git]";
+
   std::cerr << "fstree cat-file [--cache <dir>] <object>" << std::endl;
-  std::cerr << "fstree checkout [--cache <dir>] [--permissions exact|git] <tree> [<directory>]" << std::endl;
+  std::cerr << "fstree checkout [--cache <dir>] " << tree_options << " <tree> [<directory>]" << std::endl;
   std::cerr << "fstree ls-index [<directory>]" << std::endl;
   std::cerr << "fstree ls-tree [--cache <dir>] <tree>" << std::endl;
   std::cerr << "fstree pull [--cache <dir>] [--remote <url>] [--threads <int>] <tree>" << std::endl;
-  std::cerr << "fstree pull-checkout [--cache <dir>] [--remote <url>] [--permissions exact|git] [--threads <int>] "
-               "<tree> [<directory>]"
-            << std::endl;
+  std::cerr << "fstree pull-checkout [--cache <dir>] [--remote <url>] " << tree_options
+            << " [--threads <int>] <tree> [<directory>]" << std::endl;
   std::cerr << "fstree push [--cache <dir>] [--remote <url>] [--threads <int>] [<directory>]" << std::endl;
-  std::cerr << "fstree write-tree [--cache <dir>] [--ignore <conf>] [--permissions exact|git] [--threads <int>] "
-               "[<directory>]"
+  std::cerr << "fstree write-tree [--cache <dir>] " << tree_options << " [--threads <int>] [<directory>]"
             << std::endl;
-  std::cerr << "fstree write-tree-push [--cache <dir>] [--ignore <conf>] [--remote <url>] [--permissions exact|git] "
-               "[--threads <int>] [<directory>]"
-            << std::endl;
+  std::cerr << "fstree write-tree-push [--cache <dir>] [--remote <url>] " << tree_options
+            << " [--threads <int>] [<directory>]" << std::endl;
   return EXIT_FAILURE;
 }
 
@@ -209,6 +209,9 @@ int cmd_fstree(const fstree::argparser& args) {
   std::filesystem::path ignorefile = args.get_option_path("--ignore", false);
   if (ignorefile.empty()) throw std::invalid_argument("unknown ignore directory");
 
+  // Applied after the patterns of the ignore file, so they take precedence
+  std::vector<std::string> ignore_patterns = args.get_list_option("--ignore-pattern");
+
   std::filesystem::path indexfile = args.get_option_path("--index", false);
   if (indexfile.empty()) throw std::invalid_argument("unknown index path");
 
@@ -275,6 +278,7 @@ int cmd_fstree(const fstree::argparser& args) {
     rindex.sort();
     rindex.copy_metadata(lindex);
     rindex.load_ignore_from_index(cache, ignorefile);
+    rindex.add_ignore_patterns(ignore_patterns);
     rindex.checkout(cache, workspace);
     rindex.save(indexfile);
 
@@ -381,6 +385,7 @@ int cmd_fstree(const fstree::argparser& args) {
     rindex.sort();
     rindex.copy_metadata(lindex);
     rindex.load_ignore_from_index(cache, ignorefile);
+    rindex.add_ignore_patterns(ignore_patterns);
     rindex.checkout(cache, workspace);
     rindex.save(indexfile);
 
@@ -415,6 +420,9 @@ int cmd_fstree(const fstree::argparser& args) {
       ignores.load((workspace / ignorefile).string());
     }
     catch (const std::exception& e) {
+    }
+    for (const auto& pattern : ignore_patterns) {
+      ignores.add(pattern);
     }
 
     fstree::index index(workspace, ignores);
@@ -451,6 +459,9 @@ int cmd_fstree(const fstree::argparser& args) {
       ignores.load((workspace / ignorefile).string());
     }
     catch (const std::exception& e) {
+    }
+    for (const auto& pattern : ignore_patterns) {
+      ignores.add(pattern);
     }
 
     std::unique_ptr<fstree::remote> remote = fstree::remote::create(remoteurl);
@@ -506,6 +517,7 @@ int main(int argc, char* argv[]) {
     args.add_option_alias("--json", "-J");
     args.add_option("--ignore", ".fstreeignore");
     args.add_option_alias("--ignore", "-i");
+    args.add_list_option("--ignore-pattern");
     args.add_option("--index", ".fstree/index");
     args.add_option_alias("--index", "-x");
     args.add_option("--remote", "jolt://localhost:9090");

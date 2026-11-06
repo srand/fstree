@@ -90,14 +90,14 @@ void argparser::parse(int argc, char** argv) {
       // --option=value
       size_t pos = arg.find('=');
       if (pos != std::string::npos) {
-        std::string value = arg.substr(pos + 1);
-        if (_options.find(arg) == _options.end()) {
-          throw std::invalid_argument("unknown option: " + arg);
+        std::string name = arg.substr(0, pos);
+        if (_options.find(name) == _options.end()) {
+          throw std::invalid_argument("unknown option: " + name);
         }
-        if (!_options[arg]->has_value) {
-          throw std::invalid_argument("option does not take a value: " + arg);
+        if (!_options[name]->has_value) {
+          throw std::invalid_argument("option does not take a value: " + name);
         }
-        _options[arg]->value = value;
+        set_value(name, arg.substr(pos + 1));
         continue;
       }
 
@@ -110,7 +110,7 @@ void argparser::parse(int argc, char** argv) {
         if (i + 1 >= argc) {
           throw std::invalid_argument("missing value for option: " + arg);
         }
-        _options[arg]->value = argv[++i];
+        set_value(arg, argv[++i]);
       }
       else {
         _options[arg]->value = "true";
@@ -127,7 +127,7 @@ void argparser::set_env_prefix(const std::string& prefix) {
 }
 
 void argparser::add_option(const std::string& name, const std::string& default_value) {
-  _options[name] = new option{"", default_value, true};
+  _options[name] = new option{"", default_value, true, false, {}, false};
 
   // Check if the option is set in the environment
   if (!_env_prefix.empty()) {
@@ -144,6 +144,52 @@ void argparser::add_option(const std::string& name, const std::string& default_v
   }
 }
 
+void argparser::set_value(const std::string& name, const std::string& value) {
+  option* opt = _options[name];
+  if (!opt->list) {
+    opt->value = value;
+    return;
+  }
+
+  if (!opt->given) {
+    opt->values.clear();
+    opt->given = true;
+  }
+  opt->values.push_back(value);
+}
+
+void argparser::add_list_option(const std::string& name) {
+  add_option(name, "");
+  option* opt = _options[name];
+  opt->list = true;
+
+  // The environment holds one value per line, as in an ignore file
+  std::string lines = opt->value;
+  opt->value.clear();
+  size_t begin = 0;
+  while (begin < lines.size()) {
+    size_t end = lines.find('\n', begin);
+    if (end == std::string::npos) {
+      end = lines.size();
+    }
+    std::string line = lines.substr(begin, end - begin);
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+    if (!line.empty()) {
+      opt->values.push_back(line);
+    }
+    begin = end + 1;
+  }
+}
+
+std::vector<std::string> argparser::get_list_option(const std::string& name) const {
+  if (_options.find(name) == _options.end()) {
+    throw std::invalid_argument("unknown option: " + name);
+  }
+  return _options.at(name)->values;
+}
+
 void argparser::add_option_alias(const std::string& name, const std::string& alias) {
   if (_options.find(name) == _options.end()) {
     throw std::invalid_argument("unknown option: " + name);
@@ -152,7 +198,7 @@ void argparser::add_option_alias(const std::string& name, const std::string& ali
 }
 
 void argparser::add_bool_option(const std::string& name) { 
-  _options[name] = new option{"", "", false}; 
+  _options[name] = new option{"", "", false, false, {}, false}; 
 }
 
 std::string argparser::get_option(const std::string& name) const {

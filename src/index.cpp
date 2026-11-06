@@ -677,6 +677,12 @@ void index::load_ignore_from_index(fstree::cache& cache, const std::filesystem::
   }
 }
 
+void index::add_ignore_patterns(const std::vector<std::string>& patterns) {
+  for (const auto& pattern : patterns) {
+    _ignore.add(pattern);
+  }
+}
+
 bool index::lookup(const std::filesystem::path& path, fstree::digest& hash) {
   inode::ptr node = find_node_by_path(path);
   if (node) {

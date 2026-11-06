@@ -24,7 +24,18 @@ class argparser {
     std::string value;
     std::string default_value;
     bool has_value;
+
+    // Whether the option may be given several times, collecting the values
+    bool list = false;
+    std::vector<std::string> values;
+
+    // Whether the values were given on the command line, which then replace
+    // those from the environment
+    bool given = false;
   };
+
+  // Sets the value of an option given on the command line
+  void set_value(const std::string& name, const std::string& value);
 
   std::string _command;
   std::map<std::string, option*> _options;
@@ -44,7 +55,14 @@ class argparser {
 
   void add_bool_option(const std::string& name);
 
+  // Adds an option that may be given several times, collecting its values in
+  // order. In the environment, its values are given one per line.
+  void add_list_option(const std::string& name);
+
   std::string get_option(const std::string& name) const;
+
+  // Returns the values of an option added with add_list_option
+  std::vector<std::string> get_list_option(const std::string& name) const;
 
   std::filesystem::path get_option_path(const std::string& name, bool absolute = true) const;
 

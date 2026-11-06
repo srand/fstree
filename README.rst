@@ -102,6 +102,10 @@ The following environment variables are supported:
 
 - ``FSTREE_CACHE``: The directory where the local object cache is stored. Defaults to ``~/.cache/fstree`` on Linux and macOS and ``~/AppData/Local/fstree`` on Windows.
 - ``FSTREE_IGNORE``: The relative path to the ignore file. Defaults to ``.fstreeignore`` in the root of the tree.
+- ``FSTREE_IGNORE_PATTERN``: Patterns to ignore in addition to those of the ignore file, one per line, with the
+  syntax of the lines of the ignore file. They come after those of the ignore file, so they take precedence. They
+  are not stored in the tree, so the same patterns must be given when it is checked out. Also given as
+  ``--ignore-pattern``, once for each pattern.
 - ``FSTREE_PERMISSIONS``: How permissions are recorded in trees and restored at checkout, ``exact`` or ``git``.
   Defaults to ``exact``, which records and restores all permission bits. With ``git``, only whether a file is
   executable is recorded, as git does, so trees written from checkouts made with different umasks are the same.

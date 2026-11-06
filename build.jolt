@@ -693,6 +693,60 @@ class Tests(Test):
                 self.tools.unlink(os.path.join(tmp, "fresh-index"))
                 self.assertEqual(fresh, tree, "ignores: " + repr(patterns))
 
+    def files(self, root):
+        """Returns the paths of the files below a directory, without .fstree."""
+        result = set()
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if d != ".fstree"]
+            for name in filenames:
+                result.add(os.path.relpath(os.path.join(dirpath, name), root).replace(os.sep, "/"))
+        return result
+
+    def create_files(self, root, paths):
+        for path in paths:
+            self.tools.mkdirname(os.path.join(root, path))
+            self.tools.write_file(os.path.join(root, path), path)
+
+    def test_ignore_pattern(self):
+        """
+        Test that patterns given with --ignore-pattern, or in the environment,
+        are applied after those of the ignore file, when writing a tree and
+        when checking it out.
+        """
+        patterns = "--ignore .joltignore --ignore-pattern .git --ignore-pattern /build/"
+
+        with self.tools.tmpdir("ignore-pattern") as tmp, self.tools.cwd(tmp):
+            self.create_files("tree", [
+                "src/a", "a.log", "keep.log", ".git/HEAD", "build/out", "other/build/out"])
+            # A pattern given on the command line overrides the file
+            self.tools.write_file("tree/.joltignore", "*.log\n!keep.log\n!.git\n")
+
+            tree = self.write_tree(patterns, "tree")
+
+            self.tools.run("fstree checkout {} {} fresh", patterns, tree)
+            self.assertEqual(
+                {".joltignore", "keep.log", "other/build/out", "src/a"},
+                self.files(os.path.join(tmp, "fresh")))
+
+            # The same patterns given in the environment, one per line
+            with self.tools.environ(FSTREE_IGNORE_PATTERN=".git\n/build/\n"):
+                self.tools.rmtree(os.path.join(tmp, "tree", ".fstree"))
+                self.assertEqual(tree, self.write_tree("--ignore .joltignore", "tree"))
+
+            # A checkout with the patterns keeps what they ignore
+            self.create_files("worker", [".git/HEAD", "build/out", "a.log"])
+            self.tools.run("fstree checkout {} {} worker", patterns, tree)
+            self.assertEqual(
+                {".git/HEAD", "build/out", "a.log", ".joltignore", "keep.log", "other/build/out", "src/a"},
+                self.files(os.path.join(tmp, "worker")))
+
+            # Without them, the ignore file alone does not ignore .git
+            self.create_files("bare", [".git/HEAD", "build/out", "a.log"])
+            self.tools.run("fstree checkout --ignore .joltignore {} bare", tree)
+            self.assertEqual(
+                {"a.log", ".joltignore", "keep.log", "other/build/out", "src/a"},
+                self.files(os.path.join(tmp, "bare")))
+
     def create_moded_tree(self, root, file_mode, exec_mode, dir_mode):
         """Creates a tree as if checked out with some umask, with given modes."""
         self.tools.mkdir(root)

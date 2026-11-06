@@ -20,6 +20,7 @@ std::string simple::checkout(const std::string& dest_path) {
     _index.set_permissions(_permissions);
     _index.copy_metadata(dest_index);
     _index.load_ignore_from_index(_cache, _ignorefile);
+    _index.add_ignore_patterns(_ignore_patterns);
     _index.checkout(_cache, dest);
     _index.save(dest / _indexfile);
     return _index.root()->hash().string();
@@ -59,6 +60,7 @@ void simple::push(const std::string& remote_url) {
 std::string simple::write_tree(const std::string& path) {
     index index(path);
     index.set_permissions(_permissions);
+    index.add_ignore_patterns(_ignore_patterns);
     try {
       index.load();
     }
@@ -80,6 +82,7 @@ std::string simple::write_tree(const std::vector<std::string>& paths) {
     for (const auto& path : paths) {
         fstree::index other_index(path);
         other_index.set_permissions(_permissions);
+        other_index.add_ignore_patterns(_ignore_patterns);
         try {
             other_index.load();
         }

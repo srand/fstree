@@ -32,6 +32,7 @@ PYBIND11_MODULE(fstree, m) {
         }))
         .def_property("ignorefile", &fstree::simple::ignorefile, &fstree::simple::set_ignorefile)
         .def_property("indexfile", &fstree::simple::indexfile, &fstree::simple::set_indexfile)
+        .def_property("ignore_patterns", &fstree::simple::ignore_patterns, &fstree::simple::set_ignore_patterns)
         .def_property("permissions", &fstree::simple::permissions, &fstree::simple::set_permissions)
         .def("__iter__", [](const fstree::simple &s) {
             return py::make_iterator(s.begin(), s.end());
