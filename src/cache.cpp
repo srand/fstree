@@ -408,6 +408,22 @@ void cache::copy_file(const fstree::digest& hash, const std::filesystem::path& t
   std::filesystem::copy_file(file_path(hash), to, std::filesystem::copy_options::overwrite_existing);
 }
 
+void cache::cat_object(const fstree::digest& hash, std::ostream& os) {
+  std::ifstream object(file_path(hash), std::ios::binary);
+  if (!object) {
+    throw std::runtime_error("object not found in local cache: " + hash.string());
+  }
+
+  // An empty file inserts no characters, which sets failbit without an error
+  if (object.peek() != std::ifstream::traits_type::eof()) {
+    os << object.rdbuf();
+  }
+  os.flush();
+  if (!os || object.bad()) {
+    throw std::runtime_error("failed writing object: " + hash.string() + ": " + std::strerror(errno));
+  }
+}
+
 void cache::push_object(fstree::remote& remote, const fstree::digest& hash) {
   event("cache::push_object", hash.string());
   std::filesystem::path object_path = file_path(hash);

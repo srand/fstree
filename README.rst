@@ -86,6 +86,12 @@ To list the contents of a tree, run:
 
   fstree ls-tree <digest>
 
+To print the content of a file in the cache, or the entries of a tree, run:
+
+.. code-block::
+
+  fstree cat-file <digest>
+
 
 Configuration
 -------------

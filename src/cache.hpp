@@ -6,6 +6,7 @@
 #include "remote.hpp"
 
 #include <filesystem>
+#include <iosfwd>
 #include <string>
 #include <vector>
 
@@ -74,6 +75,10 @@ class cache {
 
   // Copy the object with the given hash to the given path.
   void copy_file(const fstree::digest& hash, const std::filesystem::path& to);
+
+  // Write the content of the file object with the given hash to a stream.
+  // Throws if the object is not in the cache.
+  void cat_object(const fstree::digest& hash, std::ostream& os);
 
   // Evict objects from the cache until the size is below the maximum size.
   void evict();

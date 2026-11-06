@@ -25,6 +25,8 @@
 #include <sys/syscall.h>
 #endif
 #else
+#include <fcntl.h>
+#include <io.h>
 #include <process.h>
 #include <vector>
 
@@ -68,6 +70,7 @@ class utf8_args {
 #endif
 
 int usage() {
+  std::cerr << "fstree cat-file [--cache <dir>] <object>" << std::endl;
   std::cerr << "fstree ls-index [<directory>]" << std::endl;
   std::cerr << "fstree ls-tree [--cache <dir>] <tree>" << std::endl;
   std::cerr << "fstree pull [--cache <dir>] [--remote <url>] [--threads <int>] <tree>" << std::endl;
@@ -174,6 +177,23 @@ bool spawn_evict_process(
   return true;
 }
 
+// Prints the entries of a tree object, one per line
+void print_tree(fstree::cache& cache, const fstree::digest& tree) {
+  fstree::inode::ptr root = fstree::make_intrusive<fstree::inode>();
+  cache.read_tree(tree, root);
+
+  for (const auto& inode : *root) {
+    if (inode->is_symlink())
+      std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " "
+                << inode->status().str() << " " << inode->path() << " -> " << inode->target() << std::endl;
+    else
+      std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " "
+                << inode->status().str() << " " << inode->path() << std::endl;
+  }
+
+  root->clear();
+}
+
 int cmd_fstree(const fstree::argparser& args) {
   fstree::url remoteurl(args.get_option("--remote"));
   if (remoteurl.host().empty()) throw std::invalid_argument("invalid remote URL: " + args.get_option("--remote"));
@@ -274,24 +294,31 @@ int cmd_fstree(const fstree::argparser& args) {
 
     return EXIT_SUCCESS;
   }
+  else if (args[0] == "cat-file") {
+    // Prints a file object as is, or the entries of a tree object as ls-tree
+    if (args.size() < 2) throw std::invalid_argument("missing object argument");
+    fstree::digest object = fstree::digest::parse(args[1]);
+    if (object.empty()) throw std::invalid_argument("missing object argument");
+
+    if (cache.has_tree(object)) {
+      print_tree(cache, object);
+      return EXIT_SUCCESS;
+    }
+
+#ifdef _WIN32
+    // The content must not have its line endings translated
+    std::cout.flush();
+    _setmode(_fileno(stdout), _O_BINARY);
+#endif
+    cache.cat_object(object, std::cout);
+    return EXIT_SUCCESS;
+  }
   else if (args[0] == "ls-tree") {
     if (args.size() < 2) throw std::invalid_argument("missing tree argument");
     fstree::digest tree = fstree::digest::parse(args[1]);
     if (tree.empty()) throw std::invalid_argument("missing tree argument");
 
-    fstree::inode::ptr root = fstree::make_intrusive<fstree::inode>();
-    cache.read_tree(tree, root);
-
-    for (const auto& inode : *root) {
-      if (inode->is_symlink())
-        std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " "
-                  << inode->status().str() << " " << inode->path() << " -> " << inode->target() << std::endl;
-      else
-        std::cout << std::setw(fstree::hash_digest_length + 7) << std::left << inode->hash() << " "
-                  << inode->status().str() << " " << inode->path() << std::endl;
-    }
-
-    root->clear();
+    print_tree(cache, tree);
     return EXIT_SUCCESS;
   }
   else if (args[0] == "pull") {

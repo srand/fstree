@@ -693,6 +693,33 @@ class Tests(Test):
                 self.tools.unlink(os.path.join(tmp, "fresh-index"))
                 self.assertEqual(fresh, tree, "ignores: " + repr(patterns))
 
+    def test_cat_file(self):
+        """Test that cat-file prints file objects as is and trees as ls-tree."""
+        files = {"text": b"line\r\nline\n", "binary": bytes(range(256)), "empty": b""}
+
+        with self.tools.tmpdir("cat-file") as tmp, self.tools.cwd(tmp):
+            self.tools.mkdir("tree")
+            for name, content in files.items():
+                with open(os.path.join(tmp, "tree", name), "wb") as stream:
+                    stream.write(content)
+
+            tree = self.write_tree("tree")
+            self.assertEqual(
+                self.tools.run("fstree ls-tree {}", tree),
+                self.tools.run("fstree cat-file {}", tree))
+
+            for line in self.tools.run("fstree ls-tree {}", tree).splitlines():
+                digest, name = line.split()[0], line.split()[-1]
+                self.tools.run("fstree cat-file {} > {}", digest, os.path.join(tmp, "out"))
+                with open(os.path.join(tmp, "out"), "rb") as stream:
+                    self.assertEqual(files[name], stream.read(), name)
+
+            # A digest of the algorithm in use that is in the cache neither as
+            # a file nor as a tree
+            alg, hexdigest = tree.split(":")
+            with self.assertRaises(Exception):
+                self.tools.run("fstree cat-file {}:{}", alg, "0" * len(hexdigest))
+
 
 class Publish(Task):
     """ Downloads release wheels from GitHub and publishes them to PyPI. """
