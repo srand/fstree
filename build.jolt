@@ -660,6 +660,39 @@ class Tests(Test):
         - f {0} file
         """
 
+    def write_tree(self, *args):
+        # The last line of output is the tree hash. A warning about a missing
+        # index may come before it.
+        return self.tools.run("fstree write-tree " + " ".join(args)).strip().splitlines()[-1]
+
+    def test_ignore_changed_without_touching_directories(self):
+        """
+        Test that changing the ignore file between two writes of a tree takes
+        effect in nested directories, whose own metadata does not change.
+        """
+        with self.tools.tmpdir("ignore-changed") as tmp, self.tools.cwd(tmp):
+            self.tools.mkdir("tree")
+            with self.tools.cwd("tree"):
+                self.tools.write_file(".fstreeignore", "")
+                self.tools.mkdir("a/b/c/d")
+                self.tools.mkdir("a/b/keep")
+                self.tools.write_file("a/b/c/file")
+                self.tools.write_file("a/b/c/d/file")
+                self.tools.write_file("a/b/keep/file")
+                self.tools.write_file("a/b/file.o")
+
+            # Index the tree, so that the next writes can reuse the hashes of
+            # unchanged directories
+            self.write_tree("tree")
+
+            for patterns in ["c/\n*.o", ""]:
+                self.tools.write_file(os.path.join("tree", ".fstreeignore"), patterns)
+
+                tree = self.write_tree("tree")
+                fresh = self.write_tree("--index", os.path.join(tmp, "fresh-index"), "tree")
+                self.tools.unlink(os.path.join(tmp, "fresh-index"))
+                self.assertEqual(fresh, tree, "ignores: " + repr(patterns))
+
 
 class Publish(Task):
     """ Downloads release wheels from GitHub and publishes them to PyPI. """

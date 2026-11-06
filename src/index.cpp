@@ -677,6 +677,23 @@ void index::refresh() {
   auto index_it = nodes.begin();
   auto index_end = nodes.end();
 
+  // A directory whose entries changed must have its tree recreated, even if
+  // its own metadata did not change, as when an entry was ignored or stopped
+  // being ignored. A new entry dirties its parents itself, but an entry that
+  // is gone has no node in the tree to do it.
+  const auto set_parent_dirty = [&tree](const std::string& path) {
+    size_t slash = path.rfind('/');
+    if (slash == std::string::npos) {
+      return;  // The root tree is always recreated
+    }
+    std::string parent_path = path.substr(0, slash);
+    auto parent = std::lower_bound(tree.begin(), tree.end(), parent_path,
+        [](const inode::ptr& node, const std::string& p) { return node->path() < p; });
+    if (parent != tree.end() && (*parent)->path() == parent_path) {
+      (*parent)->set_dirty();
+    }
+  };
+
   // Iterate through the filesystem tree and the index in parallel
   // looking for matching paths.
 
@@ -688,17 +705,20 @@ void index::refresh() {
     else if (index_it == index_end) {
       // No more index nodes - add remaining tree nodes
       for (; tree_it != tree_end; ++tree_it) {
+        (*tree_it)->set_dirty();
         _inodes.push_back(*tree_it);
       }
       break;
     }
     else if ((*tree_it)->path() < (*index_it)->path()) {
       // Tree node is new - add it
+      (*tree_it)->set_dirty();
       _inodes.push_back(*tree_it);
       ++tree_it;
     }
     else if ((*tree_it)->path() > (*index_it)->path()) {
-      // Index node was deleted - ignore it
+      // Index node was deleted or is now ignored - its directory changed
+      set_parent_dirty((*index_it)->path());
       ++index_it;
     }
     else {
