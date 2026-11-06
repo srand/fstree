@@ -693,6 +693,101 @@ class Tests(Test):
                 self.tools.unlink(os.path.join(tmp, "fresh-index"))
                 self.assertEqual(fresh, tree, "ignores: " + repr(patterns))
 
+    def create_moded_tree(self, root, file_mode, exec_mode, dir_mode):
+        """Creates a tree as if checked out with some umask, with given modes."""
+        self.tools.mkdir(root)
+        with self.tools.cwd(root):
+            self.tools.mkdir("dir/sub")
+            self.tools.write_file("file", "file")
+            self.tools.write_file("run.sh", "#!/bin/sh")
+            self.tools.write_file("dir/sub/file", "sub")
+            self.tools.symlink("../file", "dir/link")
+            for path, mode in [("file", file_mode), ("dir/sub/file", file_mode),
+                               ("run.sh", exec_mode),
+                               ("dir/sub", dir_mode), ("dir", dir_mode)]:
+                os.chmod(self.tools.expand_path(path), mode)
+            # On macOS, the umask also decides the mode of a symlink
+            if hasattr(os, "lchmod"):
+                os.lchmod(self.tools.expand_path("dir/link"), 0o777)
+
+    def modes(self, root):
+        """Returns the permissions of the entries of a tree by path."""
+        result = {}
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if d != ".fstree"]
+            for name in dirnames + filenames:
+                path = os.path.join(dirpath, name)
+                if not os.path.islink(path):
+                    result[os.path.relpath(path, root)] = os.lstat(path).st_mode & 0o7777
+        return result
+
+    def test_permissions_git_ignores_umask(self):
+        """
+        Test that with --permissions git, trees written from checkouts made
+        with different umasks are equal, and that without it they differ.
+        """
+        if os.name == "nt":
+            self.skipTest("permissions are not POSIX modes on Windows")
+
+        with self.tools.tmpdir("permissions-git") as tmp, self.tools.cwd(tmp):
+            self.create_moded_tree("umask022", 0o644, 0o755, 0o755)
+            self.create_moded_tree("umask002", 0o664, 0o775, 0o775)
+            self.create_moded_tree("readonly", 0o444, 0o555, 0o555)
+
+            exact = [self.write_tree(t) for t in ["umask022", "umask002", "readonly"]]
+            self.assertEqual(3, len(set(exact)))
+
+            git = [self.write_tree("--permissions git", t) for t in ["umask022", "umask002", "readonly"]]
+            self.assertEqual(1, len(set(git)))
+
+            # With exact permissions, the tree written in git mode is that
+            # of the checkout made with umask 022
+            self.assertEqual(exact[0], git[0])
+
+            with self.assertRaises(Exception):
+                self.write_tree("--permissions bogus", "umask022")
+
+    def test_permissions_git_checkout_applies_umask(self):
+        """
+        Test that a checkout with --permissions git creates files and
+        directories as git does, with permissions given by the umask, and
+        that writing the checkout gives back the same tree.
+        """
+        if os.name == "nt":
+            self.skipTest("permissions are not POSIX modes on Windows")
+
+        with self.tools.tmpdir("permissions-checkout") as tmp, self.tools.cwd(tmp):
+            self.create_moded_tree("tree", 0o600, 0o700, 0o700)
+            tree_exact = self.write_tree("tree")
+            tree_git = self.write_tree("--permissions git", "tree")
+            self.assertNotEqual(tree_exact, tree_git)
+
+            expected = {
+                "file": 0o664, "run.sh": 0o775, "dir": 0o775,
+                "dir/sub": 0o775, "dir/sub/file": 0o664,
+            }
+
+            # Either tree checks out as git would, also the one written with
+            # exact permissions, and writes back as the tree in git mode
+            for tree, name in [(tree_git, "git"), (tree_exact, "exact")]:
+                self.tools.run("umask 002 && fstree --permissions git checkout {} {}", tree, name)
+                self.assertEqual(expected, self.modes(os.path.join(tmp, name)), name)
+                self.assertEqual(tree_git, self.write_tree("--permissions git", name), name)
+
+            # A changed executable bit of an existing file is restored, and
+            # the permissions of entries otherwise left alone
+            os.chmod(os.path.join(tmp, "git", "run.sh"), 0o664)
+            os.chmod(os.path.join(tmp, "git", "file"), 0o640)
+            self.tools.run("umask 002 && fstree --permissions git checkout {} git", tree_git)
+            self.assertEqual(dict(expected, file=0o640), self.modes(os.path.join(tmp, "git")))
+
+            # A checkout with exact permissions gives the modes recorded in
+            # the tree, whatever the umask
+            self.tools.run("umask 002 && fstree checkout {} exact-checkout", tree_git)
+            self.assertEqual(
+                {"file": 0o644, "run.sh": 0o755, "dir": 0o755, "dir/sub": 0o755, "dir/sub/file": 0o644},
+                self.modes(os.path.join(tmp, "exact-checkout")))
+
     def test_cat_file(self):
         """Test that cat-file prints file objects as is and trees as ls-tree."""
         files = {"text": b"line\r\nline\n", "binary": bytes(range(256)), "empty": b""}

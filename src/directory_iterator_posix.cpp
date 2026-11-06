@@ -98,7 +98,7 @@ void sorted_directory_iterator::read_directory(
         status_bits |= file_status::symlink;
         break;
     }
-    file_status status(status_bits);
+    file_status status = normalize_permissions(file_status(status_bits), _permissions);
 
     // Add the path to the list of inodes
     // Only this call adds children to the parent, so that needs no lock

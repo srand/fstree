@@ -123,6 +123,8 @@ FILE* mkstemp(std::filesystem::path& path) {
 
 FILE* mkstemp_umask(std::filesystem::path& path) { return mkstemp(path); }
 
+uint32_t process_umask() { return 0; }
+
 bool touch(const std::filesystem::path& path) {
   OFSTRUCT of;
 

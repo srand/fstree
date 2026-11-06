@@ -31,6 +31,9 @@ class sorted_directory_iterator {
   // Inode compare function, default is by path
   compare_function _compare;
 
+  // How the permissions found on disk are recorded in the inodes
+  permission_mode _permissions = permission_mode::exact;
+
  public:
   sorted_directory_iterator() = default;
 
@@ -38,7 +41,17 @@ class sorted_directory_iterator {
       const std::filesystem::path& path, const glob_list& ignores, bool recursive = true);
 
   explicit sorted_directory_iterator(
-      const std::filesystem::path& path, const glob_list& ignores, compare_function compare, bool recursive = true);
+      const std::filesystem::path& path,
+      const glob_list& ignores,
+      permission_mode permissions,
+      bool recursive = true);
+
+  explicit sorted_directory_iterator(
+      const std::filesystem::path& path,
+      const glob_list& ignores,
+      compare_function compare,
+      bool recursive = true,
+      permission_mode permissions = permission_mode::exact);
 
   ~sorted_directory_iterator();
 

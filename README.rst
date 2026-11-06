@@ -102,6 +102,11 @@ The following environment variables are supported:
 
 - ``FSTREE_CACHE``: The directory where the local object cache is stored. Defaults to ``~/.cache/fstree`` on Linux and macOS and ``~/AppData/Local/fstree`` on Windows.
 - ``FSTREE_IGNORE``: The relative path to the ignore file. Defaults to ``.fstreeignore`` in the root of the tree.
+- ``FSTREE_PERMISSIONS``: How permissions are recorded in trees and restored at checkout, ``exact`` or ``git``.
+  Defaults to ``exact``, which records and restores all permission bits. With ``git``, only whether a file is
+  executable is recorded, as git does, so trees written from checkouts made with different umasks are the same.
+  Files are then checked out with ``0666`` or ``0777`` and directories with ``0777``, less the umask. Applies to
+  POSIX systems only. Also given as ``--permissions``.
 - ``FSTREE_REMOTE``: The remote address of the server to connect to. Defaults to ``jolt://localhost:9090``.
   Use ``tls://`` for a gRPC server with TLS, and ``https://`` for an HTTP server with TLS.
 - ``FSTREE_CONNECT_TIMEOUT``: Seconds to wait for the connection to a gRPC server before giving up. Defaults to ``60``.

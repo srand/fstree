@@ -276,7 +276,9 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
     throw std::runtime_error("failed to create directory: " + path.string() + ": " + ec.message());
   }
 
-  sorted_directory_iterator tree(path, _ignore);
+  normalize_recorded_permissions();
+
+  sorted_directory_iterator tree(path, _ignore, _permissions);
 
   auto cur_tree_node = tree.begin();
   auto cur_index_node = _inodes.begin();
@@ -379,10 +381,11 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
         if (!(*cur_index_node)->is_directory()) checkout_node(cache, *cur_index_node, path);
       }
 
-      // Compare inode permissions
+      // Compare inode permissions, as recorded with the permission mode
       if ((*cur_tree_node)->permissions() != (*cur_index_node)->permissions()) {
         std::filesystem::permissions(
-            path / to_path((*cur_index_node)->path()), (*cur_index_node)->permissions(),
+            path / to_path((*cur_index_node)->path()),
+            checkout_permissions((*cur_index_node)->status(), _permissions),
             std::filesystem::perm_options::replace, ec);
         if (ec) {
           throw std::runtime_error("failed to set permissions: " + path.string() + ": " + ec.message());
@@ -433,7 +436,8 @@ void index::checkout_node(fstree::cache& c, inode::ptr node, const std::filesyst
     if (ec) {
       throw std::runtime_error("failed to create directory: " + full_path.string() + ": " + ec.message());
     }
-    std::filesystem::permissions(full_path, node->permissions(), std::filesystem::perm_options::replace, ec);
+    std::filesystem::permissions(
+        full_path, checkout_permissions(node->status(), _permissions), std::filesystem::perm_options::replace, ec);
     if (ec) {
       throw std::runtime_error("failed to set permissions: " + full_path.string() + ": " + ec.message());
     }
@@ -444,7 +448,8 @@ void index::checkout_node(fstree::cache& c, inode::ptr node, const std::filesyst
       throw std::runtime_error("failed to remove file: " + full_path.string() + ": " + ec.message());
     }
     c.copy_file(node->hash(), full_path);
-    std::filesystem::permissions(full_path, node->permissions(), std::filesystem::perm_options::replace, ec);
+    std::filesystem::permissions(
+        full_path, checkout_permissions(node->status(), _permissions), std::filesystem::perm_options::replace, ec);
     if (ec) {
       throw std::runtime_error("failed to set permissions: " + full_path.string() + ": " + ec.message());
     }
@@ -455,7 +460,32 @@ void index::checkout_node(fstree::cache& c, inode::ptr node, const std::filesyst
   lstat(full_path.c_str(), st);
 
   node->set_last_write_time(st.last_write_time);
-  node->set_status(st.status);
+  node->set_status(fstree::normalize_permissions(st.status, _permissions));
+}
+
+void index::normalize_recorded_permissions() {
+  if (_permissions == permission_mode::exact) {
+    return;
+  }
+
+  // The root keeps the digest of the tree checked out, which is reported
+  digest root_hash = _root->hash();
+
+  // The index is saved after checkout, to tell what changed on disk when the
+  // tree is written next time. The tree of a directory with entries whose
+  // permissions are recorded differently is not what that write would give,
+  // so it must be recreated rather than reused.
+  for (auto& node : _inodes) {
+    file_status status = fstree::normalize_permissions(node->status(), _permissions);
+    if (uint32_t(status) != uint32_t(node->status())) {
+      node->set_status(status);
+      if (node->parent()) {
+        node->parent()->set_dirty();
+      }
+    }
+  }
+
+  _root->set_hash(root_hash);
 }
 
 inode::ptr index::find_node_by_path(const std::filesystem::path& path) const {
@@ -667,7 +697,7 @@ void index::refresh() {
   // relationships. We can only rely on the list of inodes in the index.
 
   // Scan the filesystem tree
-  sorted_directory_iterator tree(_root_path, _ignore);
+  sorted_directory_iterator tree(_root_path, _ignore, _permissions);
 
   // Copy index a temporary vector and clear the index
   std::vector<inode::ptr> nodes(std::move(_inodes));

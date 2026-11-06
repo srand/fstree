@@ -2,6 +2,7 @@
 #include "cache.hpp"
 #include "encoding.hpp"
 #include "event.hpp"
+#include "filesystem.hpp"
 #include "hash.hpp"
 #include "index.hpp"
 #include "jobserver.hpp"
@@ -71,16 +72,20 @@ class utf8_args {
 
 int usage() {
   std::cerr << "fstree cat-file [--cache <dir>] <object>" << std::endl;
+  std::cerr << "fstree checkout [--cache <dir>] [--permissions exact|git] <tree> [<directory>]" << std::endl;
   std::cerr << "fstree ls-index [<directory>]" << std::endl;
   std::cerr << "fstree ls-tree [--cache <dir>] <tree>" << std::endl;
   std::cerr << "fstree pull [--cache <dir>] [--remote <url>] [--threads <int>] <tree>" << std::endl;
-  std::cerr << "fstree pull-checkout [--cache <dir>] [--remote <url>] [--threads <int>] <tree> [<directory>]"
+  std::cerr << "fstree pull-checkout [--cache <dir>] [--remote <url>] [--permissions exact|git] [--threads <int>] "
+               "<tree> [<directory>]"
             << std::endl;
   std::cerr << "fstree push [--cache <dir>] [--remote <url>] [--threads <int>] [<directory>]" << std::endl;
-  std::cerr << "fstree write-tree [--cache <dir>] [--ignore <conf>] [--threads <int>] [<directory>]" << std::endl;
-  std::cerr
-      << "fstree write-tree-push [--cache <dir>] [--ignore <conf>] [--remote <url>] [--threads <int>] [<directory>]"
-      << std::endl;
+  std::cerr << "fstree write-tree [--cache <dir>] [--ignore <conf>] [--permissions exact|git] [--threads <int>] "
+               "[<directory>]"
+            << std::endl;
+  std::cerr << "fstree write-tree-push [--cache <dir>] [--ignore <conf>] [--remote <url>] [--permissions exact|git] "
+               "[--threads <int>] [<directory>]"
+            << std::endl;
   return EXIT_FAILURE;
 }
 
@@ -207,6 +212,11 @@ int cmd_fstree(const fstree::argparser& args) {
   std::filesystem::path indexfile = args.get_option_path("--index", false);
   if (indexfile.empty()) throw std::invalid_argument("unknown index path");
 
+  fstree::permission_mode permissions = fstree::parse_permission_mode(args.get_option("--permissions"));
+
+  // Read before any thread creates files, as reading it may change it briefly
+  fstree::process_umask();
+
   std::string threads = args.get_option("--threads");
   if (threads.empty()) throw std::invalid_argument("unknown thread count");
   try {
@@ -249,6 +259,7 @@ int cmd_fstree(const fstree::argparser& args) {
 
     fstree::index lindex(workspace);
     fstree::index rindex(workspace);
+    rindex.set_permissions(permissions);
 
     try {
       lindex.load(indexfile);
@@ -354,6 +365,7 @@ int cmd_fstree(const fstree::argparser& args) {
 
     std::unique_ptr<fstree::remote> remote = fstree::remote::create(remoteurl);
     fstree::index rindex(workspace), lindex(workspace);
+    rindex.set_permissions(permissions);
 
     try {
       lindex.load(indexfile);
@@ -406,6 +418,7 @@ int cmd_fstree(const fstree::argparser& args) {
     }
 
     fstree::index index(workspace, ignores);
+    index.set_permissions(permissions);
     try {
       index.load(indexfile);
     }
@@ -442,6 +455,7 @@ int cmd_fstree(const fstree::argparser& args) {
 
     std::unique_ptr<fstree::remote> remote = fstree::remote::create(remoteurl);
     fstree::index index(workspace, ignores);
+    index.set_permissions(permissions);
 
     try {
       index.load(indexfile);
@@ -496,6 +510,8 @@ int main(int argc, char* argv[]) {
     args.add_option_alias("--index", "-x");
     args.add_option("--remote", "jolt://localhost:9090");
     args.add_option_alias("--remote", "-r");
+    args.add_option("--permissions", "exact");
+    args.add_option_alias("--permissions", "-p");
     args.add_option("--threads", std::to_string(std::thread::hardware_concurrency()));
     args.add_option_alias("--threads", "-j");
     args.add_option("--jobserver-path", "");

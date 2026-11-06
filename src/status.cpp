@@ -1,6 +1,9 @@
 #include "status.hpp"
 
+#include "filesystem.hpp"
+
 #include <filesystem>
+#include <stdexcept>
 #include <string>
 #include <sys/stat.h>
 
@@ -99,6 +102,50 @@ bool file_status::is_directory() const {
 
 bool file_status::is_symlink() const { 
   return type() == std::filesystem::file_type::symlink; 
+}
+
+permission_mode parse_permission_mode(const std::string& mode) {
+  if (mode == "exact") return permission_mode::exact;
+  if (mode == "git") return permission_mode::git;
+  throw std::invalid_argument("invalid permissions: " + mode + ", expected exact or git");
+}
+
+file_status normalize_permissions(const file_status& status, permission_mode mode) {
+#ifdef _WIN32
+  (void)mode;
+  return status;
+#else
+  if (mode == permission_mode::exact) {
+    return status;
+  }
+
+  using std::filesystem::perms;
+  switch (status.type()) {
+    case std::filesystem::file_type::directory:
+      return file_status(status.type(), perms(0755));
+    case std::filesystem::file_type::symlink:
+      // The mode of a symlink is not used, but depends on the umask on macOS
+      return file_status(status.type(), perms(0777));
+    case std::filesystem::file_type::regular:
+      return file_status(
+          status.type(), perms((status.permissions() & perms::owner_exec) != perms::none ? 0755 : 0644));
+    default:
+      return status;
+  }
+#endif
+}
+
+std::filesystem::perms checkout_permissions(const file_status& status, permission_mode mode) {
+#ifndef _WIN32
+  if (mode == permission_mode::git) {
+    using std::filesystem::perms;
+    bool executable = status.is_directory() || (status.permissions() & perms::owner_exec) != perms::none;
+    return perms((executable ? 0777 : 0666) & ~process_umask());
+  }
+#else
+  (void)mode;
+#endif
+  return status.permissions();
 }
 
 }  // namespace fstree

@@ -4,6 +4,7 @@
 #include "encoding.hpp"
 #include "inode.hpp"
 
+#include <cstdint>
 #include <filesystem>
 
 namespace fstree {
@@ -21,6 +22,11 @@ FILE* mkstemp(std::filesystem::path& templ);
 // file rather than owner-only access.
 FILE* mkstemp_umask(std::filesystem::path& templ);
 bool touch(const std::filesystem::path& path);
+
+// Returns the umask of the process, 0 on Windows. Unless it can be read from
+// /proc, reading it changes it briefly for every thread, so it is read once,
+// by the first call, which should come before threads create files.
+uint32_t process_umask();
 bool link_file(const std::filesystem::path& from, const std::filesystem::path& to);
 
 }  // namespace fstree

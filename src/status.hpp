@@ -36,6 +36,30 @@ class file_status : public std::filesystem::file_status {
   bool is_symlink() const;
 };
 
+// How the permissions of files and directories are recorded in trees and
+// restored at checkout. Only POSIX systems tell them apart.
+enum class permission_mode {
+  // All permission bits are recorded and restored as they were
+  exact,
+
+  // As git, only whether a file is executable is recorded. Files are recorded
+  // as 0644 or 0755 and directories as 0755, and at checkout the umask
+  // decides the rest, which makes trees the same whatever umask the files
+  // were created with.
+  git,
+};
+
+// Parses "exact" or "git", or throws std::invalid_argument
+permission_mode parse_permission_mode(const std::string& mode);
+
+// Returns the status to record for a file or directory found with the given
+// status on disk.
+file_status normalize_permissions(const file_status& status, permission_mode mode);
+
+// Returns the permissions to give a file or directory checked out from a
+// tree, where it was recorded with the given status.
+std::filesystem::perms checkout_permissions(const file_status& status, permission_mode mode);
+
 }  // namespace fstree
 
 #endif  // MODE_HPP

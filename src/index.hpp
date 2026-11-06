@@ -20,6 +20,9 @@ class index {
   std::filesystem::path _root_path;
   inode::ptr _root;
 
+  // How permissions are recorded by refresh() and restored by checkout()
+  permission_mode _permissions = permission_mode::exact;
+
  public:
   // Constructor
   index();
@@ -43,6 +46,9 @@ class index {
   inode::ptr& root();
 
   const inode::ptr& root() const;
+
+  permission_mode permissions() const { return _permissions; }
+  void set_permissions(permission_mode permissions) { _permissions = permissions; }
 
   // Checks out the index to the given path
   void checkout(fstree::cache& cache, const std::filesystem::path& path);
@@ -90,6 +96,10 @@ class index {
 
  private:
   void checkout_node(fstree::cache& c, inode::ptr node, const std::filesystem::path& path);
+
+  // Records the permissions of the inodes as the permission mode does, for a
+  // tree that may have been written with another mode.
+  void normalize_recorded_permissions();
 
   std::vector<inode::ptr> glob_linear(const std::string& patterns, std::vector<inode::ptr>& result) const;
 

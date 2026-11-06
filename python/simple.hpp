@@ -1,6 +1,7 @@
 #pragma once 
 
 #include "cache.hpp"
+#include "filesystem.hpp"
 #include "index.hpp"
 #include "url.hpp"
 
@@ -27,6 +28,14 @@ public:
     void set_indexfile(const std::filesystem::path& indexfile) { _indexfile = indexfile; }
     void set_ignorefile(const std::filesystem::path& ignorefile) { _ignorefile = ignorefile; }
 
+    // How permissions are recorded and restored, "exact" or "git"
+    std::string permissions() const { return _permissions == permission_mode::git ? "git" : "exact"; }
+    void set_permissions(const std::string& permissions) {
+        _permissions = parse_permission_mode(permissions);
+        // Read now, rather than during a checkout, as reading it may change it briefly
+        process_umask();
+    }
+
     auto begin() const { return _index.begin(); }
     auto end() const { return _index.end(); }
 
@@ -45,6 +54,7 @@ private:
     index _index;
     std::filesystem::path _indexfile = ".fstree/index";
     std::filesystem::path _ignorefile = ".fstreeignore";
+    permission_mode _permissions = permission_mode::exact;
 };
 
 } // namespace fstree

@@ -4,6 +4,8 @@
 
 #include <atomic>
 #include <cstring>
+#include <fstream>
+#include <string>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -80,6 +82,25 @@ FILE* mkstemp_umask(std::filesystem::path& path) {
   }
 
   return NULL;
+}
+
+uint32_t process_umask() {
+  static const uint32_t mask = [] {
+#ifdef __linux__
+    // Since Linux 4.7, the umask can be read without changing it
+    std::ifstream status("/proc/self/status");
+    std::string line;
+    while (std::getline(status, line)) {
+      if (line.compare(0, 6, "Umask:") == 0) {
+        return uint32_t(std::stoul(line.substr(6), nullptr, 8));
+      }
+    }
+#endif
+    mode_t old = ::umask(0);
+    ::umask(old);
+    return uint32_t(old);
+  }();
+  return mask;
 }
 
 std::filesystem::path home_path() {
