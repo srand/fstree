@@ -94,7 +94,10 @@ jobs:
         name: binary-${{ matrix.os }}
         path: ./sysroot/bin
 
+  # Wheels are disabled. To enable them, remove the if: false here and on
+  # the wheel and PyPI steps of the release job, and make it need this job.
   build-wheels:
+    if: false
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -154,7 +157,6 @@ jobs:
   release:
     needs:
       - build-executable
-      - build-wheels
     environment: production
     runs-on: ubuntu-latest
     permissions:
@@ -166,6 +168,7 @@ jobs:
       with:
         python-version: '3.12'
     - name: Install PyPI upload dependencies
+      if: false
       run: |
         python -m pip install --upgrade pip
         python -m pip install --upgrade twine
@@ -182,16 +185,19 @@ jobs:
       with:
         name: binary-macos-latest
     - name: Download wheel
+      if: false
       uses: actions/download-artifact@v4
       with:
         name: wheels-macos-latest
         path: dist
     - name: Download wheel
+      if: false
       uses: actions/download-artifact@v4
       with:
         name: wheels-ubuntu-latest
         path: dist
     - name: Download wheel
+      if: false
       uses: actions/download-artifact@v4
       with:
         name: wheels-windows-latest
@@ -233,7 +239,7 @@ jobs:
           upload "$asset"
         done
     - name: Release to PyPI
-      if: ${{ !cancelled() }}
+      if: false
       env:
         TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
