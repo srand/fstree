@@ -145,7 +145,9 @@ PYBIND11_MODULE(fstree, m) {
         .def("load", [](fstree::index &idx, const std::string& file) {
             idx.load(std::filesystem::path(file));
         })
-        .def("refresh", &fstree::index::refresh)
+        .def("refresh", [](fstree::index &idx) {
+            idx.refresh();
+        })
         .def_property_readonly("root", [](fstree::index &idx) -> fstree::intrusive_ptr<fstree::inode> {
             return idx.root();
         })
