@@ -39,6 +39,23 @@ sorted_directory_iterator::sorted_directory_iterator(
     std::sort(_inodes.begin(), _inodes.end(), _compare);
 }
 
+sorted_directory_iterator::sorted_directory_iterator(
+    const std::filesystem::path& root,
+    const std::filesystem::path& rel,
+    const glob_list& ignores,
+    permission_mode permissions,
+    bool recursive)
+    : _root(fstree::make_intrusive<fstree::inode>())
+    , _pool(&get_pool())
+    , _ignores(ignores)
+    , _recursive(recursive)
+    , _compare(by_path)
+    , _permissions(permissions)
+{
+    read_directory(root / rel, rel, _root, ignores);
+    std::sort(_inodes.begin(), _inodes.end(), _compare);
+}
+
 sorted_directory_iterator::~sorted_directory_iterator() {
     if (_root) {
         _root->clear();

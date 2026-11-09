@@ -693,6 +693,71 @@ class Tests(Test):
                 self.tools.unlink(os.path.join(tmp, "fresh-index"))
                 self.assertEqual(fresh, tree, "ignores: " + repr(patterns))
 
+    def test_write_tree_paths(self):
+        """
+        Test that write-tree with paths after the directory refreshes only
+        those paths of the index and gives the same tree as a full refresh
+        when nothing else changed, and that changes elsewhere are kept out.
+        """
+        with self.tools.tmpdir("write-tree-paths") as tmp, self.tools.cwd(tmp):
+            ignores = "--ignore-pattern .git --ignore-pattern /build/"
+            self.create_files("tree", ["repo/src/a", "other/b", "top", "build/out"])
+
+            def write(*paths):
+                return self.write_tree(ignores, "tree", *paths)
+
+            def fresh():
+                tree = self.write_tree(ignores, "--index", os.path.join(tmp, "fresh-index"), "tree")
+                self.tools.unlink(os.path.join(tmp, "fresh-index"))
+                return tree
+
+            write()
+
+            def change(name, *paths):
+                self.assertEqual(fresh(), write(*paths), name)
+
+            self.tools.write_file("tree/repo/src/a", "changed")
+            change("changed file", "repo")
+
+            self.create_files("tree", ["repo/src/new", "repo/inc/h"])
+            change("added files and directory", "repo")
+
+            self.tools.rmtree("tree/repo/inc")
+            change("removed directory", "repo/inc")
+
+            self.create_files("tree", ["deep/x/y/z"])
+            change("new directories on the path", "deep/x/y")
+
+            self.create_files("tree", ["repo/.git/HEAD", "build/more"])
+            change("ignored entries", "repo", "build")
+
+            self.create_files("tree", ["repo/c", "other/c"])
+            change("several paths, relative and absolute", "repo", os.path.join(tmp, "tree", "other"))
+
+            self.tools.write_file("tree/top", "changed")
+            change("file at the top", "top")
+
+            if os.name != "nt":
+                os.chmod(os.path.join(tmp, "tree", "repo", "c"), 0o755)
+                change("permissions", "repo/c")
+
+                os.symlink("repo", os.path.join(tmp, "tree", "link"))
+                change("new symlink", "link")
+
+            self.tools.unlink("tree/top")
+            change("removed file", "top")
+
+            self.tools.rmtree("tree/repo")
+            change("removed directory with entries", "repo")
+
+            # A change outside the paths is not picked up
+            self.create_files("tree", ["other/outside"])
+            self.assertNotEqual(fresh(), write("deep"))
+            change("full refresh", ".")
+
+            with self.assertRaises(Exception):
+                write("../outside")
+
     def files(self, root):
         """Returns the paths of the files below a directory, without .fstree."""
         result = set()

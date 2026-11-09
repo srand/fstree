@@ -61,7 +61,7 @@ cache::cache(const std::filesystem::path& path, size_t max_size, std::chrono::se
   }
 }
 
-void cache::add(fstree::index& index) {
+void cache::add(fstree::index& index, bool dirty_only) {
   event("cache::add", index.root_path());
 
   pool& pool = get_pool();
@@ -72,9 +72,14 @@ void cache::add(fstree::index& index) {
   std::vector<inode::ptr> dirty_files, clean_files, dirs;
   for (const auto& inode : index) {
     if (inode->is_file()) {
-      (inode->is_dirty() ? dirty_files : clean_files).push_back(inode);
+      if (inode->is_dirty()) {
+        dirty_files.push_back(inode);
+      }
+      else if (!dirty_only) {
+        clean_files.push_back(inode);
+      }
     }
-    else if (inode->is_directory()) {
+    else if (inode->is_directory() && (!dirty_only || inode->is_dirty())) {
       dirs.push_back(inode);
     }
   }

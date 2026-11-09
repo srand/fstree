@@ -82,8 +82,8 @@ int usage() {
   std::cerr << "fstree pull-checkout [--cache <dir>] [--remote <url>] " << tree_options
             << " [--threads <int>] <tree> [<directory>]" << std::endl;
   std::cerr << "fstree push [--cache <dir>] [--remote <url>] [--threads <int>] [<directory>]" << std::endl;
-  std::cerr << "fstree write-tree [--cache <dir>] " << tree_options << " [--threads <int>] [<directory>]"
-            << std::endl;
+  std::cerr << "fstree write-tree [--cache <dir>] " << tree_options << " [--index <file>] [--threads <int>]"
+            << " [<directory> [<path>...]]" << std::endl;
   std::cerr << "fstree write-tree-push [--cache <dir>] [--remote <url>] " << tree_options
             << " [--threads <int>] [<directory>]" << std::endl;
   return EXIT_FAILURE;
@@ -437,8 +437,16 @@ int cmd_fstree(const fstree::argparser& args) {
         std::cerr << "warning: failed to load index: " << tolower(e.what()) << std::endl;
     }
 
-    index.refresh();
-    cache.add(index);
+    // Paths after the directory are refreshed alone, and the rest of the
+    // index is kept, as when only they are known to have changed
+    std::vector<std::filesystem::path> paths;
+    for (size_t i = 2; i < args.size(); i++) {
+      // Relative to the directory, not to the current directory
+      paths.push_back(fstree::to_path(args[i]));
+    }
+
+    bool partial = index.refresh(paths);
+    cache.add(index, partial);
     index.save(indexfile);
 
     if (cache.claim_eviction() && !spawn_evict_process(args.command(), cachedir, cachesize, retention_period, threads)) {

@@ -53,6 +53,16 @@ class sorted_directory_iterator {
       bool recursive = true,
       permission_mode permissions = permission_mode::exact);
 
+  // Reads the directory at rel below the root, with the paths of the inodes
+  // relative to the root, so that the ignore patterns, which are relative to
+  // the root, match as in a scan of the whole root.
+  explicit sorted_directory_iterator(
+      const std::filesystem::path& root,
+      const std::filesystem::path& rel,
+      const glob_list& ignores,
+      permission_mode permissions,
+      bool recursive);
+
   ~sorted_directory_iterator();
 
   // begin and end functions

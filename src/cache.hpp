@@ -63,7 +63,10 @@ class cache {
 
   // Adds an index to the cache.
   // Files/trees are copied/created into the cache object directory.
-  void add(fstree::index& index);
+  // With dirty_only, unchanged entries are assumed to be in the cache
+  // already, as after a partial refresh of an index that was added before,
+  // and only changed files and directories are added.
+  void add(fstree::index& index, bool dirty_only = false);
 
   // Pull the tree with the given hash from the remote and add it to the index.
   // The tree is traversed recursively.

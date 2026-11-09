@@ -12,12 +12,27 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace fstree {
 
 static const uint16_t magic = 0x3ee3;
 static const uint16_t version = 1;
+
+// Returns the path of the directory of an inode path, empty for the root
+static std::string parent_path(const std::string& path) {
+  return to_utf8(to_path(path).parent_path());
+}
+
+// Whether an inode path is the given path or below it
+static bool is_within(const std::string& path, const std::string& ancestor) {
+  if (path.size() == ancestor.size()) return path == ancestor;
+  if (path.size() < ancestor.size() || path.compare(0, ancestor.size(), ancestor) != 0) return false;
+  char c = path[ancestor.size()];
+  return c == '/' || c == static_cast<char>(std::filesystem::path::preferred_separator);
+}
 
 // Constructor implementations
 index::index()
@@ -780,6 +795,193 @@ void index::refresh() {
 
   // Replace root node
   _root = std::move(tree.root());
+}
+
+bool index::is_partially_refreshable() const {
+  if (_inodes.empty()) {
+    return false;
+  }
+  for (const auto& node : _inodes) {
+    // Symlinks are recorded by their targets and have no digests
+    if (!node->is_symlink() &&
+        (node->hash().alg() != fstree::hash_function || node->hash().hexdigest().size() != fstree::hash_digest_length)) {
+      return false;
+    }
+    if (uint32_t(fstree::normalize_permissions(node->status(), _permissions)) != uint32_t(node->status())) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::string index::relative_path(const std::filesystem::path& path) const {
+  std::filesystem::path root = std::filesystem::absolute(_root_path).lexically_normal();
+  std::filesystem::path abs = path.is_absolute() ? path : root / path;
+  std::filesystem::path rel = abs.lexically_normal().lexically_relative(root);
+  if (rel.empty() || *rel.begin() == "..") {
+    throw std::invalid_argument("path is outside of the tree: " + to_utf8(path));
+  }
+  if (rel == ".") {
+    return std::string();
+  }
+  // A trailing separator leaves an empty last component
+  if (rel.filename().empty()) {
+    rel = rel.parent_path();
+  }
+  return to_utf8(rel);
+}
+
+bool index::refresh(const std::vector<std::filesystem::path>& paths) {
+  if (paths.empty() || !is_partially_refreshable()) {
+    refresh();
+    return false;
+  }
+
+  event("index::refresh", _root_path.string());
+
+  std::unordered_map<std::string, inode::ptr> nodes_by_path;
+  for (const auto& node : _inodes) {
+    nodes_by_path.emplace(node->path(), node);
+  }
+
+  // The entries to scan. An entry whose directory is not in the index, as
+  // when a repository is cloned into a new directory, is scanned from the
+  // first directory on its path that is missing, so that every directory
+  // created is scanned too.
+  std::vector<std::string> targets;
+  for (const auto& path : paths) {
+    std::string target = relative_path(path);
+    if (target.empty()) {
+      refresh();
+      return false;
+    }
+    for (;;) {
+      std::string parent = parent_path(target);
+      if (parent.empty()) break;
+      auto it = nodes_by_path.find(parent);
+      if (it != nodes_by_path.end() && it->second->is_directory()) break;
+      target = parent;
+    }
+    targets.push_back(target);
+  }
+
+  // Leave out entries below others that are scanned anyway
+  std::sort(targets.begin(), targets.end());
+  targets.erase(std::unique(targets.begin(), targets.end()), targets.end());
+  std::vector<std::string> unique_targets;
+  for (const auto& target : targets) {
+    bool covered = std::any_of(unique_targets.begin(), unique_targets.end(),
+        [&target](const std::string& other) { return is_within(target, other); });
+    if (!covered) unique_targets.push_back(target);
+  }
+  targets = std::move(unique_targets);
+
+  const auto is_targeted = [&targets](const std::string& path) {
+    return std::any_of(targets.begin(), targets.end(),
+        [&path](const std::string& target) { return is_within(path, target); });
+  };
+
+  // Scan each entry. Its directory is read without descending into others,
+  // so that the entry is matched against the ignore patterns as in a full
+  // scan, and if the entry is a directory, it is then read recursively. The
+  // inodes are detached from the iterators when they are destroyed.
+  std::vector<inode::ptr> scanned;
+  for (const auto& target : targets) {
+    std::filesystem::path rel = to_path(target);
+    std::filesystem::path parent = rel.parent_path();
+
+    std::error_code ec;
+    if (!std::filesystem::is_directory(_root_path / parent, ec)) {
+      // The directory of the entry is gone too
+      refresh();
+      return false;
+    }
+
+    inode::ptr entry;
+    {
+      sorted_directory_iterator dir(_root_path, parent, _ignore, _permissions, false);
+      for (const auto& node : dir) {
+        if (node->path() == target) {
+          entry = node;
+          break;
+        }
+      }
+    }
+    if (!entry) {
+      // Removed or ignored
+      continue;
+    }
+    scanned.push_back(entry);
+
+    if (entry->is_directory()) {
+      sorted_directory_iterator dir(_root_path, rel, _ignore, _permissions, true);
+      scanned.insert(scanned.end(), dir.begin(), dir.end());
+    }
+  }
+
+  // Replace the nodes of the scanned entries
+  std::unordered_map<std::string, inode::ptr> replaced;
+  std::vector<inode::ptr> nodes;
+  nodes.reserve(_inodes.size() + scanned.size());
+  for (auto& node : _inodes) {
+    if (is_targeted(node->path())) {
+      replaced.emplace(node->path(), node);
+    }
+    else {
+      nodes.push_back(node);
+    }
+  }
+  nodes.insert(nodes.end(), scanned.begin(), scanned.end());
+  std::sort(nodes.begin(), nodes.end(), [](const inode::ptr& a, const inode::ptr& b) { return a->path() < b->path(); });
+  _inodes = std::move(nodes);
+
+  // Link the nodes into a tree, which the loaded index lacks. A directory
+  // sorts before its entries, as its path is a prefix of theirs.
+  _root = fstree::make_intrusive<fstree::inode>();
+  std::unordered_map<std::string, inode::ptr> dirs;
+  for (auto& node : _inodes) {
+    std::string parent = parent_path(node->path());
+    if (parent.empty()) {
+      _root->add_child(node);
+    }
+    else {
+      auto it = dirs.find(parent);
+      if (it == dirs.end()) {
+        // The loaded index is inconsistent
+        _root->clear();
+        refresh();
+        return false;
+      }
+      it->second->add_child(node);
+    }
+    if (node->is_directory()) {
+      dirs.emplace(node->path(), node);
+    }
+  }
+
+  // Reuse the hashes of unchanged entries. Changed entries dirty their
+  // directories, which then get new trees, and so do the directories of
+  // entries that are gone.
+  std::unordered_set<std::string> scanned_paths;
+  for (auto& node : scanned) {
+    scanned_paths.insert(node->path());
+    auto it = replaced.find(node->path());
+    if (it != replaced.end() && it->second->is_equivalent(node)) {
+      node->set_hash(it->second->hash());
+    }
+    else {
+      node->set_dirty();
+    }
+  }
+  for (const auto& [path, node] : replaced) {
+    if (scanned_paths.count(path)) continue;
+    auto it = dirs.find(parent_path(path));
+    if (it != dirs.end()) {
+      it->second->set_dirty();
+    }
+  }
+
+  return true;
 }
 
 void index::merge(const fstree::index& other) {

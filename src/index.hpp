@@ -88,6 +88,12 @@ class index {
   // Refreshes the index by scanning the filesystem
   void refresh();
 
+  // Refreshes the index by scanning only the given paths, absolute or
+  // relative to the root, and keeps the rest of the loaded index as it is.
+  // Falls back to a full refresh, and returns false, if there are no paths
+  // or the loaded index cannot be refreshed in part.
+  bool refresh(const std::vector<std::filesystem::path>& paths);
+
   // Saves the index to the default .fstree/index file
   void save() const;
 
@@ -99,6 +105,15 @@ class index {
 
  private:
   void checkout_node(fstree::cache& c, inode::ptr node, const std::filesystem::path& path);
+
+  // Whether every node of the loaded index has a digest of the hash
+  // algorithm in use and permissions recorded as the permission mode does,
+  // so that the nodes outside the paths of a partial refresh can be kept.
+  bool is_partially_refreshable() const;
+
+  // Returns the path of an inode relative to the root, or an empty string
+  // for the root itself.
+  std::string relative_path(const std::filesystem::path& path) const;
 
   // Records the permissions of the inodes as the permission mode does, for a
   // tree that may have been written with another mode.
