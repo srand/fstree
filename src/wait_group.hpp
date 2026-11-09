@@ -110,4 +110,19 @@ class wait_group {
   int _count = 0;
 };
 
+// Waits for the jobs of a wait group when it goes out of scope, for jobs that
+// refer to the frame that started them. An exception that leaves the frame
+// then waits for them too, and their own exceptions are dropped.
+class wait_guard {
+ public:
+  explicit wait_guard(wait_group& wg) : _wg(wg) {}
+  ~wait_guard() { _wg.wait(); }
+
+  wait_guard(const wait_guard&) = delete;
+  wait_guard& operator=(const wait_guard&) = delete;
+
+ private:
+  wait_group& _wg;
+};
+
 }  // namespace fstree

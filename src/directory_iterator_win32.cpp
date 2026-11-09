@@ -7,6 +7,8 @@
 
 #include <Windows.h>
 
+#include <memory>
+
 namespace fs = std::filesystem;
 
 namespace fstree {
@@ -21,6 +23,10 @@ const inode::ptr& sorted_directory_iterator::root() const { return _root; }
 void sorted_directory_iterator::read_directory(
     const std::filesystem::path& abs, const std::filesystem::path& rel, inode::ptr& parent, const glob_list& ignores) {
   fstree::wait_group wg;
+
+  // Subdirectories are read by tasks that refer to this frame and to the
+  // iterator, so they must finish before an exception leaves the function
+  wait_guard guard(wg);
 
   // Entries of the directory, added to the shared list together once the
   // directory has been read, rather than taking its lock for each of them
@@ -39,6 +45,12 @@ void sorted_directory_iterator::read_directory(
     std::error_code ec(error, std::system_category());
     throw std::runtime_error("failed to traverse directory: " + to_utf8(rel) + ": " + ec.message());
   }
+
+  // Closes the search however the function is left
+  struct find_close {
+    void operator()(HANDLE handle) const { FindClose(handle); }
+  };
+  std::unique_ptr<void, find_close> search(handle);
 
   do {
     // Keep the name in its native UTF-16 form to build paths from, and convert
@@ -97,6 +109,10 @@ void sorted_directory_iterator::read_directory(
       std::error_code ec;
       target = fs::read_symlink(path_abs, ec);
       if (ec) {
+        // Removed since it was listed
+        if (ec == std::errc::no_such_file_or_directory) {
+          continue;
+        }
         throw std::runtime_error("failed to read symlink: " + to_utf8(path_abs) + ": " + ec.message());
       }
     }
@@ -118,20 +134,27 @@ void sorted_directory_iterator::read_directory(
     // Recurse if it's a directory
     if (_recursive && type == fs::file_type::directory) {
       wg.add(1);
-      _pool->enqueue_or_run([this, path_abs, path, node, ignores, &wg] {
-        try {
-          inode::ptr node_c = intrusive_ptr<inode>(node);
-          read_directory(path_abs, path, node_c, ignores);
-          wg.done();
-        }
-        catch (const std::exception& e) {
-          wg.exception(e);
-        }
-      });
+      try {
+        _pool->enqueue_or_run([this, path_abs, path, node, ignores, &wg] {
+          try {
+            inode::ptr node_c = intrusive_ptr<inode>(node);
+            read_directory(path_abs, path, node_c, ignores);
+            wg.done();
+          }
+          catch (const std::exception& e) {
+            wg.exception(e);
+          }
+        });
+      }
+      catch (...) {
+        // Not queued, or the guard would wait for it forever
+        wg.done();
+        throw;
+      }
     }
   } while (FindNextFileW(handle, &result));
 
-  FindClose(handle);
+  search.reset();
 
   {
     std::lock_guard<std::mutex> lock(_mutex);

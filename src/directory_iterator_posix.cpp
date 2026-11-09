@@ -5,6 +5,7 @@
 #include "wait_group.hpp"
 
 #include <cstring>
+#include <memory>
 
 #include <dirent.h>
 #include <sys/stat.h>
@@ -33,12 +34,16 @@ const inode::ptr& sorted_directory_iterator::root() const {
 void sorted_directory_iterator::read_directory(
     const std::filesystem::path& abs, const std::filesystem::path& rel, inode::ptr& parent, const glob_list& ignores) {
   // Open the directory
-  DIR* dir = opendir(abs.c_str());
-  if (dir == nullptr) {
+  std::unique_ptr<DIR, int (*)(DIR*)> dir(opendir(abs.c_str()), closedir);
+  if (!dir) {
     throw std::runtime_error("Failed to open directory: " + abs.string() + ": " + std::strerror(errno));
   }
 
   fstree::wait_group wg;
+
+  // Subdirectories are read by tasks that refer to this frame and to the
+  // iterator, so they must finish before an exception leaves the function
+  wait_guard guard(wg);
 
   // Entries of the directory, added to the shared list together once the
   // directory has been read, rather than taking its lock for each of them
@@ -46,7 +51,7 @@ void sorted_directory_iterator::read_directory(
 
   // Iterate the directory
   const struct dirent* entry;
-  while ((entry = readdir(dir)) != nullptr) {
+  while ((entry = readdir(dir.get())) != nullptr) {
     // Get the path
     std::filesystem::path relpath = rel / entry->d_name;
     std::filesystem::path abspath = abs / entry->d_name;
@@ -75,7 +80,15 @@ void sorted_directory_iterator::read_directory(
     // Read the target of the symlink
     std::filesystem::path target;
     if ((st.st_mode & S_IFMT) == S_IFLNK) {
-      target = std::filesystem::read_symlink(abs / entry->d_name);
+      std::error_code ec;
+      target = std::filesystem::read_symlink(abspath, ec);
+      if (ec) {
+        // Removed or replaced since it was listed, as when lstat fails
+        if (ec == std::errc::no_such_file_or_directory || ec == std::errc::invalid_argument) {
+          continue;
+        }
+        throw std::filesystem::filesystem_error("read_symlink", abspath, ec);
+      }
     }
 
     // convert mtime to uint64_t
@@ -118,21 +131,28 @@ void sorted_directory_iterator::read_directory(
     // Recurse if it's a directory
     if (_recursive && entry->d_type == DT_DIR) {
       wg.add(1);
-      _pool->enqueue_or_run([this, abspath, relpath, node, &wg] {
-        try {
-          inode::ptr node_c = intrusive_ptr<inode>(node); 
-          read_directory(abspath, relpath, node_c, _ignores);
-          wg.done();
-        }
-        catch (const std::exception& e) {
-          wg.exception(e);
-        }
-      });
+      try {
+        _pool->enqueue_or_run([this, abspath, relpath, node, &wg] {
+          try {
+            inode::ptr node_c = intrusive_ptr<inode>(node);
+            read_directory(abspath, relpath, node_c, _ignores);
+            wg.done();
+          }
+          catch (const std::exception& e) {
+            wg.exception(e);
+          }
+        });
+      }
+      catch (...) {
+        // Not queued, or the guard would wait for it forever
+        wg.done();
+        throw;
+      }
     }
   }
 
   // Close the directory
-  closedir(dir);
+  dir.reset();
 
   {
     std::lock_guard<std::mutex> lock(_mutex);

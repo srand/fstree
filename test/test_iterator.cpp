@@ -5,7 +5,10 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <atomic>
+#include <chrono>
 #include <set>
+#include <thread>
 
 using namespace fstree;
 namespace fs = std::filesystem;
@@ -654,4 +657,48 @@ TEST_F(DirectoryIteratorTest, IgnoredFilesRemainMarkedChildren) {
     visit(it.root());
     EXPECT_EQ(ignored, (std::set<std::string>{"drop.log", "sub/drop.log"}));
     EXPECT_EQ(kept, (std::set<std::string>{"keep.txt", "sub", "sub/keep.txt"}));
+}
+
+// Entries that other processes remove while a directory is read are skipped
+// and never fail the scan. Directories with entries are read in parallel, so
+// a failure left those reads running on a directory that was gone.
+TEST_F(DirectoryIteratorTest, SymlinksRemovedDuringScan) {
+    for (int i = 0; i < 8; i++) {
+        for (int j = 0; j < 50; j++) {
+            CreateFile("dir" + std::to_string(i) + "/file" + std::to_string(j));
+        }
+    }
+    for (int i = 0; i < 100; i++) {
+        CreateSymlink("link" + std::to_string(i), "target");
+    }
+    if (IsSkipped()) {
+        return;
+    }
+
+    std::atomic<bool> stop{false};
+    std::thread churn([&] {
+        while (!stop) {
+            for (int i = 0; i < 100; i++) {
+                fs::path link = test_dir / ("link" + std::to_string(i));
+                std::error_code ec;
+                fs::remove(link, ec);
+                fs::create_symlink("target", link, ec);
+            }
+        }
+    });
+
+    std::string failure;
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+    while (failure.empty() && std::chrono::steady_clock::now() < deadline) {
+        try {
+            sorted_directory_iterator it(test_dir, glob_list());
+        }
+        catch (const std::exception& e) {
+            failure = e.what();
+        }
+    }
+
+    stop = true;
+    churn.join();
+    EXPECT_EQ(failure, "");
 }
