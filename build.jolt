@@ -731,6 +731,13 @@ class Tests(Test):
             self.create_files("tree", ["repo/.git/HEAD", "build/more"])
             change("ignored entries", "repo", "build")
 
+            # Entries indexed when they were not ignored are dropped, also
+            # outside the paths
+            nogit = "--ignore-pattern /build/"
+            self.create_files("tree", [".git/HEAD", ".git/objects/info/alternates", "other/.git/HEAD"])
+            self.write_tree(nogit, "tree")
+            change("entries indexed before they were ignored", "top")
+
             self.create_files("tree", ["repo/c", "other/c"])
             change("several paths, relative and absolute", "repo", os.path.join(tmp, "tree", "other"))
 
@@ -811,6 +818,19 @@ class Tests(Test):
             self.assertEqual(
                 {"a.log", ".joltignore", "keep.log", "other/build/out", "src/a"},
                 self.files(os.path.join(tmp, "bare")))
+
+            # Entries of a tree that the patterns ignore, written without them,
+            # are not checked out over what is there
+            self.create_files("tree", [".git/objects/info/alternates"])
+            self.tools.rmtree(os.path.join(tmp, "tree", ".fstree"))
+            with_git = self.write_tree("--ignore .joltignore", "tree")
+            self.tools.write_file("worker/.git/HEAD", "worker")
+            self.tools.run("fstree checkout {} {} worker", patterns, with_git)
+            self.assertEqual(
+                {".git/HEAD", "build/out", "a.log", ".joltignore", "keep.log", "other/build/out", "src/a"},
+                self.files(os.path.join(tmp, "worker")))
+            with open(os.path.join(tmp, "worker", ".git", "HEAD")) as f:
+                self.assertEqual("worker", f.read())
 
     def create_moded_tree(self, root, file_mode, exec_mode, dir_mode):
         """Creates a tree as if checked out with some umask, with given modes."""

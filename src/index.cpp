@@ -34,6 +34,37 @@ static bool is_within(const std::string& path, const std::string& ancestor) {
   return c == '/' || c == static_cast<char>(std::filesystem::path::preferred_separator);
 }
 
+// Moves the nodes that the ignore patterns match, also those below ignored
+// directories, out of the list and returns them. A node is matched as when
+// walking the filesystem, which skips ignored directories, provided its
+// directory comes before it in the list, as when sorted by path.
+static std::vector<inode::ptr> extract_ignored(const glob_list& ignore, std::vector<inode::ptr>& nodes) {
+  std::vector<inode::ptr> ignored;
+  if (ignore.begin() == ignore.end()) {
+    return ignored;  // Only negated patterns, if any
+  }
+
+  std::unordered_map<std::string, bool> dir_ignored;
+  std::vector<inode::ptr> kept;
+  kept.reserve(nodes.size());
+  for (auto& node : nodes) {
+    bool is_ignored;
+    auto parent = dir_ignored.find(parent_path(node->path()));
+    if (parent == dir_ignored.end()) {
+      is_ignored = ignore.match(node->path(), node->is_directory());
+    }
+    else {
+      is_ignored = parent->second || ignore.match_entry(node->path(), node->is_directory());
+    }
+    if (node->is_directory()) {
+      dir_ignored.emplace(node->path(), is_ignored);
+    }
+    (is_ignored ? ignored : kept).push_back(node);
+  }
+  nodes = std::move(kept);
+  return ignored;
+}
+
 // Constructor implementations
 index::index()
   : _root(fstree::make_intrusive<fstree::inode>())
@@ -292,6 +323,12 @@ void index::checkout(fstree::cache& cache, const std::filesystem::path& path) {
   }
 
   normalize_recorded_permissions();
+
+  // Ignored entries of the tree are not checked out, so that what is on disk
+  // in their place is kept as it is, as when it was written from a workspace
+  // that did not ignore them. They are left out of the index too, which then
+  // describes what was checked out.
+  extract_ignored(_ignore, _inodes);
 
   sorted_directory_iterator tree(path, _ignore, _permissions);
 
@@ -919,8 +956,13 @@ bool index::refresh(const std::vector<std::filesystem::path>& paths) {
     }
   }
 
-  // Replace the nodes of the scanned entries
+  // Replace the nodes of the scanned entries. Entries of the index that are
+  // ignored, as when it was written with fewer ignore patterns, are dropped
+  // like entries that are gone, also outside the paths.
   std::unordered_map<std::string, inode::ptr> replaced;
+  for (auto& node : extract_ignored(_ignore, _inodes)) {
+    replaced.emplace(node->path(), node);
+  }
   std::vector<inode::ptr> nodes;
   nodes.reserve(_inodes.size() + scanned.size());
   for (auto& node : _inodes) {
